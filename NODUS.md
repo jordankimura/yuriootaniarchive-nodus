@@ -64,7 +64,40 @@ Eighteen website integration tests cover these, the bundled local site and the e
 
 Cookies are easy to reset; these are pilot protections, not sufficient anti-abuse controls for a public service. Rate limits currently use the gateway socket address, so requests through one reverse proxy share a bucket. State is in memory, in one process, and clears on restart. There is no durable queue or cross-instance coordination. The public transcript must never be presented as a private conversation.
 
-## Public deployment still needed
+## Opening the room to the public
+
+Jordan chose to let public visitors reach his private Nodus, with the voice instructions telling Nodus that website visitors are not Jordan. The room is public only while Jordan runs **Open Nodus Room to Public**; the normal Studio and website launchers stay local-only.
+
+The public room is one program with two doors that share one queue and transcript:
+
+- **Visitor door, `127.0.0.1:8795`.** Tailscale Funnel exposes only this port, at `https://<this-pc>.<tailnet>.ts.net`. It answers only visitor routes and only with the Vercel proxy's secret. Worker and publisher routes return 404 there.
+- **Local controls, `127.0.0.1:8794`.** Loopback only: the camera publisher, the worker and Jordan's own local view. Never put this port on Funnel.
+
+The Vercel proxy forwards each visitor's address (from Vercel's `x-forwarded-for`) so rate limits apply per visitor rather than to the shared proxy connection. Cookies set through the door are `Secure`.
+
+Secrets are generated on first use in `%USERPROFILE%\.nodus\public-room.json`, outside this repository. The proxy token is never logged.
+
+### One-time setup (Jordan)
+
+1. Sign in to Tailscale on this PC. In the Tailscale admin console, enable HTTPS certificates and Funnel for this machine.
+2. Print the proxy token: `node server/local-preview.mjs --print-proxy-token`.
+3. In Vercel, under the project's Settings → Environment Variables for Production, set:
+   - `NODUS_GATEWAY_URL`: `https://<this-pc>.<tailnet>.ts.net` (the open script prints it)
+   - `NODUS_PUBLIC_SITE_ORIGIN`: `https://yuriootani.vercel.app`
+   - `NODUS_PROXY_TOKEN`: the printed token
+4. Redeploy so the function picks up the variables.
+
+### Each session
+
+1. Start Nodus Studio and load the voice key.
+2. Run `scripts/Open Nodus Room to Public.cmd`. It refuses to open if Tailscale is signed out or Nodus is not ready. The publisher opens: choose the Warudo camera.
+3. When finished, run `scripts/Close Nodus Room to Public.cmd`. It turns Funnel off and returns to the local-only room.
+
+When the PC or Funnel is off, the live site shows the room as closed.
+
+Limits: video goes directly from Jordan's PC to each viewer (about 1.6 Mbps of upload per viewer), with STUN but no TURN, so some strict networks will not connect. There is no sound yet: Nodus's voice needs a virtual audio cable and the voice app's output set to it. The 60-turn cap, 20-second cooldown, 12-turn queue and 600-character messages still apply. Every turn is copied to Jordan's private Discord channel once the voice app has restarted.
+
+## Further hardening
 
 1. Create a separate public Nodus profile with isolated memory, no Jordan identity assumptions, and an explicit allowlist of safe tools. Decide how public conversations are retained and moderated. Do not expose the private Connectome, Warudo bridge or voice app.
 2. Implement an outbound worker for that public profile. The included personal adapter must continue to refuse public mode. Add authentication or an invitation gate, real per-visitor quotas, moderation and an operator stop control before enabling public turns.

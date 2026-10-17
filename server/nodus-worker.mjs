@@ -2,16 +2,24 @@ import WebSocket from "ws";
 import { setTimeout as pause } from "node:timers/promises";
 const loopback = (url) =>
   ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname);
-export async function assertPrivatePreview({ gateway, app, config, enabled }) {
-  if (
-    enabled !== true ||
-    config.mode !== "local-preview" ||
-    !loopback(gateway) ||
-    !loopback(app) ||
-    !loopback(config.siteOrigin)
-  )
+// The personal adapter always runs on this PC. Public visitors reach it only when
+// Jordan explicitly opens the public room; otherwise a public profile is required.
+export async function assertPrivatePreview({
+  gateway,
+  app,
+  config,
+  enabled,
+  publicRoom = false,
+}) {
+  const room =
+    config.mode === "local-preview"
+      ? loopback(config.siteOrigin)
+      : publicRoom === true &&
+        config.mode === "public" &&
+        new URL(config.siteOrigin).protocol === "https:";
+  if (enabled !== true || !room || !loopback(gateway) || !loopback(app))
     throw Error(
-      "The personal Nodus adapter is only available in an explicitly enabled loopback preview. A public profile with isolated memory and restricted tools is required before deployment.",
+      "The personal Nodus adapter is only available in an explicitly enabled loopback preview, or when Jordan opens the public room. Otherwise a public profile with isolated memory and restricted tools is required.",
     );
 }
 export function speak(app, text, { timeoutMs = 490000, signal, visitor } = {}) {
@@ -82,6 +90,7 @@ export async function runWorker({
   app = "http://127.0.0.1:8788",
   token,
   allowPrivatePreview = false,
+  allowPublicRoom = false,
   setCamera,
   signal,
 } = {}) {
@@ -106,6 +115,7 @@ export async function runWorker({
     app,
     config,
     enabled: allowPrivatePreview,
+    publicRoom: allowPublicRoom,
   });
   let activeJob = null,
     visitorTurns = false;

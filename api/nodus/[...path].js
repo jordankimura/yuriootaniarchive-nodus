@@ -44,6 +44,10 @@ export default async function handler(req, res) {
       req.method === "GET" ? undefined : JSON.stringify(req.body || {});
     if (body && Buffer.byteLength(body) > 20000)
       return res.status(413).json({ error: "Request too large." });
+    const forwarded = String(req.headers["x-forwarded-for"] || "")
+      .split(",")[0]
+      .trim();
+    const client = /^[0-9a-fA-F:.]{2,45}$/.test(forwarded) ? forwarded : "";
     const upstream = await fetch(url, {
       method: req.method,
       headers: {
@@ -57,6 +61,8 @@ export default async function handler(req, res) {
         ...(req.headers["x-nodus-view"]
           ? { "X-Nodus-View": req.headers["x-nodus-view"] }
           : {}),
+        // Vercel sets x-forwarded-for; the room uses it only for per-visitor rate limits.
+        ...(client ? { "X-Nodus-Client-Ip": client } : {}),
       },
       body,
       redirect: "error",

@@ -71,6 +71,7 @@ test("website proxy forwards only the intended visitor request and server-held c
     assert.equal(options.headers["X-Nodus-Proxy-Token"], "proxy-secret");
     assert.equal(options.headers.Authorization, undefined);
     assert.equal(options.headers.Cookie, "nodus_stage=test");
+    assert.equal(options.headers["X-Nodus-Client-Ip"], "203.0.113.7");
     assert.equal(options.redirect, "error");
     return new Response(JSON.stringify({ name: "Guest 123" }), {
       headers: {
@@ -90,6 +91,7 @@ test("website proxy forwards only the intended visitor request and server-held c
           origin: "https://site.example",
           cookie: "nodus_stage=test",
           authorization: "Bearer untrusted",
+          "x-forwarded-for": "203.0.113.7, 10.0.0.1",
         },
       },
       res,

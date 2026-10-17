@@ -540,3 +540,89 @@ test("voice adapter acknowledges playback and waits for audio completion", async
   assert.equal(turns[1].visitor, "Guest 412");
   assert.equal(turns[1].text, "Hi");
 });
+test("the public room splits a token-guarded visitor door from loopback-only controls that share one room", async (t) => {
+  const proxyToken = "p".repeat(40),
+    site = "https://site.example";
+  const door = createGateway({
+    secret: "s".repeat(40),
+    workerToken: token,
+    proxyToken,
+    mode: "public",
+    siteOrigin: site,
+    localControls: true,
+    cooldownMs: 0,
+  });
+  const controls = door.controls;
+  await new Promise((r) => door.listen(0, "127.0.0.1", r));
+  await new Promise((r) => controls.listen(0, "127.0.0.1", r));
+  t.after(() => {
+    door.close();
+    controls.close();
+  });
+  const doorBase = "http://127.0.0.1:" + door.address().port,
+    controlsBase = "http://127.0.0.1:" + controls.address().port;
+  const fromSite = (ip, extra = {}) => ({
+    Origin: site,
+    "Content-Type": "application/json",
+    "X-Nodus-Proxy-Token": proxyToken,
+    "X-Nodus-Client-Ip": ip,
+    ...extra,
+  });
+  // Studio controls are not reachable through the public door, even with the proxy token.
+  for (const path of ["/worker/config", "/operator", "/operator/session"])
+    assert.equal(
+      (await fetch(doorBase + path, { headers: fromSite("1.2.3.4") })).status,
+      404,
+    );
+  assert.equal(
+    (await fetch(doorBase + "/session", { method: "POST", headers: { Origin: site }, body: "{}" })).status,
+    403,
+  );
+  const join = await fetch(doorBase + "/session", {
+    method: "POST",
+    headers: fromSite("1.2.3.4"),
+    body: "{}",
+  });
+  assert.equal(join.status, 200);
+  assert.match(join.headers.get("set-cookie"), /Secure/);
+  const visitor = await join.json(),
+    cookie = join.headers.get("set-cookie").split(";")[0];
+  // The worker uses the loopback controls and sees the visitor's turn.
+  const worker = (path, body) =>
+    fetch(controlsBase + "/worker/" + path, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+  await worker("heartbeat", { ready: true });
+  assert.equal(
+    (
+      await fetch(doorBase + "/turns", {
+        method: "POST",
+        headers: fromSite("1.2.3.4", { Cookie: cookie, "X-Nodus-CSRF": visitor.csrf }),
+        body: JSON.stringify({ text: "hello", public: true }),
+      })
+    ).status,
+    202,
+  );
+  assert.equal((await worker("claim", {})).job.text, "hello");
+  assert.equal((await fetch(controlsBase + "/operator")).status, 200);
+  // Rate limits apply per forwarded visitor address, not to the shared proxy connection.
+  let last;
+  for (let i = 0; i < 41; i++)
+    last = await fetch(doorBase + "/session", { method: "POST", headers: fromSite("9.9.9.9"), body: "{}" });
+  assert.equal(last.status, 429);
+  assert.equal(
+    (await fetch(doorBase + "/session", { method: "POST", headers: fromSite("8.8.8.8"), body: "{}" })).status,
+    200,
+  );
+  // The personal adapter accepts the public room only when Jordan opens it explicitly.
+  const config = { mode: "public", siteOrigin: site };
+  await assertPrivatePreview({ gateway: controlsBase, app: "http://127.0.0.1:8788", config, enabled: true, publicRoom: true });
+  await assert.rejects(
+    assertPrivatePreview({ gateway: controlsBase, app: "http://127.0.0.1:8788", config: { mode: "public", siteOrigin: "http://site.example" }, enabled: true, publicRoom: true }),
+  );
+  assert.throws(() =>
+    createGateway({ secret: "s".repeat(40), workerToken: token, localControls: true }),
+  );
+});

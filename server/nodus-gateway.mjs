@@ -24,6 +24,7 @@ export function createGateway({
   maxTurns = 60,
   cooldownMs = 20000,
   siteRoot = "",
+  localControls = false,
 } = {}) {
   if (!secret || secret.length < 32 || !workerToken || workerToken.length < 32)
     throw Error(
@@ -35,7 +36,9 @@ export function createGateway({
     throw Error("Choose a conversation cap of 1–1000 turns.");
   if (mode === "public" && (!proxyToken || proxyToken.length < 32))
     throw Error("Public mode requires a separate proxy secret.");
-  if (siteRoot && mode !== "local-preview")
+  if (localControls && mode !== "public")
+    throw Error("Separate local controls are only used by the public room.");
+  if (siteRoot && mode !== "local-preview" && !localControls)
     throw Error("Only the local preview serves the website itself.");
   const origin = new URL(siteOrigin).origin;
   if (mode === "local-preview" && !loopback(new URL(origin).hostname))
@@ -89,10 +92,12 @@ export function createGateway({
     res.end(JSON.stringify(data));
   };
   // When it also serves the site, the local room is its own origin.
-  const allowed = (req) =>
+  const allowed = (req, local = mode === "local-preview") =>
     !req.headers.origin ||
     origins.has(req.headers.origin) ||
-    (!!siteRoot && req.headers.origin === "http://" + req.headers.host);
+    (local &&
+      !!siteRoot &&
+      req.headers.origin === "http://" + req.headers.host);
   const apiRoute = (route) =>
     route.startsWith("/worker/") ||
     route.startsWith("/operator") ||
@@ -213,8 +218,13 @@ export function createGateway({
       throw Object.assign(Error("Invalid request."), { status: 400 });
     }
   }
-  function limit(req) {
-    const key = req.socket.remoteAddress || "unknown";
+  // Behind the authenticated Vercel proxy, each visitor's address arrives in a header.
+  function limit(req, door = false) {
+    const forwarded = String(req.headers["x-nodus-client-ip"] || "");
+    const key =
+      door && /^[0-9a-fA-F:.]{2,45}$/.test(forwarded)
+        ? "visitor:" + forwarded
+        : req.socket.remoteAddress || "unknown";
     let r = rates.get(key);
     if (!r || now() - r.start > 60000) {
       r = { start: now(), count: 0 };
@@ -223,13 +233,17 @@ export function createGateway({
     if (++r.count > 40)
       throw Object.assign(Error("Please slow down."), { status: 429 });
   }
-  const server = http.createServer(async (req, res) => {
+  // "door" is the main listener. In the public room, "controls" is a second,
+  // loopback-only listener for the publisher, the worker and Jordan's local view.
+  async function handle(req, res, surface) {
+    const local = mode === "local-preview" || surface === "controls";
+    const door = mode === "public" && surface === "door";
     try {
       const url = new URL(req.url, "http://gateway.local");
       let route = url.pathname;
       // The bundled local site calls the room API under /api/nodus, as it does on Vercel.
       // Only visitor routes are reachable there; worker and publisher controls never are.
-      if (siteRoot && route.startsWith("/api/nodus/")) {
+      if (siteRoot && local && route.startsWith("/api/nodus/")) {
         route = route.slice("/api/nodus".length);
         if (
           route.startsWith("/worker/") ||
@@ -239,11 +253,17 @@ export function createGateway({
           return json(res, 404, { error: "Not found." });
       }
       clean();
-      if (mode === "local-preview") {
+      if (
+        door &&
+        localControls &&
+        (route.startsWith("/worker/") || route.startsWith("/operator"))
+      )
+        return json(res, 404, { error: "Not found." });
+      if (local) {
         if (
           !loopback(new URL("http://" + req.headers.host).hostname) ||
           req.headers["x-forwarded-for"] ||
-          (!route.startsWith("/operator") && !allowed(req))
+          (!route.startsWith("/operator") && !allowed(req, true))
         )
           return json(res, 403, { error: "This preview is local only." });
       } else if (
@@ -255,11 +275,12 @@ export function createGateway({
       if (
         !route.startsWith("/worker/") &&
         !route.startsWith("/operator") &&
-        !allowed(req)
+        !allowed(req, local)
       )
         return json(res, 403, { error: "This website origin is not allowed." });
       if (
         siteRoot &&
+        local &&
         ["GET", "HEAD"].includes(req.method) &&
         !apiRoute(route) &&
         !url.pathname.startsWith("/api/")
@@ -351,7 +372,7 @@ export function createGateway({
         return json(res, 404, { error: "Not found." });
       }
       if (route === "/operator" || route === "/operator.js") {
-        if (mode !== "local-preview")
+        if (!local)
           return json(res, 404, {
             error: "Publisher setup is only served locally.",
           });
@@ -368,7 +389,7 @@ export function createGateway({
       }
       if (route === "/operator/session" && req.method === "POST") {
         if (
-          mode !== "local-preview" ||
+          !local ||
           !loopback(req.socket.remoteAddress?.replace("::ffff:", "")) ||
           req.headers.origin !== new URL("http://" + req.headers.host).origin
         )
@@ -445,7 +466,7 @@ export function createGateway({
       if (route === "/session" && req.method === "POST") {
         if (!req.headers.origin || !allowed(req))
           return json(res, 403, { error: "Enter through the website." });
-        limit(req);
+        limit(req, door);
         let s = session(req);
         if (!s) {
           if (sessions.size >= 100)
@@ -463,7 +484,7 @@ export function createGateway({
           sessions.set(key, s);
           res.setHeader(
             "Set-Cookie",
-            `nodus_stage=${key}.${sign(key)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${new URL(origin).protocol === "https:" ? "; Secure" : ""}`,
+            `nodus_stage=${key}.${sign(key)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${door && new URL(origin).protocol === "https:" ? "; Secure" : ""}`,
           );
         }
         s.seen = now();
@@ -495,7 +516,7 @@ export function createGateway({
         return json(res, 403, {
           error: "Refresh the room before trying again.",
         });
-      limit(req);
+      limit(req, door);
       const data = await body(req);
       if (route === "/signal" && req.method === "POST") {
         if (
@@ -631,7 +652,12 @@ export function createGateway({
           : "The room could not handle this request.",
       });
     }
-  });
+  }
+  const server = http.createServer((req, res) => handle(req, res, "door"));
+  if (localControls)
+    server.controls = http.createServer((req, res) =>
+      handle(req, res, "controls"),
+    );
   return server;
 }
 
