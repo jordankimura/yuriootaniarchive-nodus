@@ -368,7 +368,7 @@ textarea::placeholder {
 }
 .about-nodus {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr);
   gap: 36px;
   margin-top: 56px;
   padding: 34px 0 40px;
@@ -380,23 +380,6 @@ textarea::placeholder {
   line-height: 1.7;
   color: #4a4a40;
   margin: 0 0 14px;
-}
-.about-facts {
-  margin: 0;
-  display: grid;
-  gap: 14px;
-  align-content: start;
-}
-.about-facts dt {
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.17em;
-  color: #817a6d;
-}
-.about-facts dd {
-  margin: 3px 0 0;
-  font-size: 13px;
-  color: var(--ink);
 }
 footer {
   display: flex;

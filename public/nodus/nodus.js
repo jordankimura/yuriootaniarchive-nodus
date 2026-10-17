@@ -2,6 +2,8 @@ const $ = (id) => document.getElementById(id);
 let videoView = "";
 let connectionTimer = null;
 let playbackBlocked = false;
+let signalPolling = false;
+let signalFailures = 0;
 let csrf = "",
   name = "",
   state = null,
@@ -222,6 +224,7 @@ function gathered(peer, ms) {
 }
 async function connectVideo() {
   if (!globalThis.RTCPeerConnection) return;
+  const startedAt = Date.now();
   connecting = true;
   videoView = crypto.randomUUID().replaceAll("-", "");
   cursor = 0;
@@ -267,6 +270,7 @@ async function connectVideo() {
         video.onplaying = () => {
           if (pc !== peer || !video.videoWidth) return;
           clearTimeout(connectionTimer);
+          $("stage").dataset.connectionMs = String(Date.now() - startedAt);
           playbackBlocked = false;
           $("poster").hidden = true;
           $("play-video").hidden = true;
@@ -331,6 +335,38 @@ $("retry-video").addEventListener("click", () => {
   retryAt = 0;
   if (csrf && state?.videoAvailable) void connectVideo();
 });
+// Camera negotiation must not wait for the transcript request or its timeout.
+async function pollSignals() {
+  if (!csrf || !pc || connecting || signalPolling) return;
+  signalPolling = true;
+  const peer = pc;
+  try {
+    const r = await api("/signals?after=" + cursor);
+    if (pc !== peer) return;
+    for (const m of r.messages) {
+      if (pc !== peer) break;
+      if (m.type === "answer" && peer.signalingState === "have-local-offer") {
+        $("stage-caption").textContent = "Camera found. Starting video…";
+        await peer.setRemoteDescription(m.payload);
+        for (const candidate of candidates) await peer.addIceCandidate(candidate);
+        candidates = [];
+      }
+      if (m.type === "candidate" && m.payload) {
+        if (peer.remoteDescription) await peer.addIceCandidate(m.payload);
+        else candidates.push(m.payload);
+      }
+      if (m.type === "reset") stopVideo();
+    }
+    if (pc === peer) { cursor = r.cursor; signalFailures = 0; }
+  } catch {
+    // A single slow proxy response should not tear down a healthy video stream.
+    if (pc === peer && ++signalFailures >= 3) {
+      stopVideo();
+      $("stage-caption").textContent = "Connection interrupted. Retrying shortly…";
+    }
+  } finally { signalPolling = false; }
+}
+setInterval(() => void pollSignals(), 750);
 setInterval(async () => {
   if (!csrf || polling) return;
   polling = true;
@@ -338,25 +374,7 @@ setInterval(async () => {
   try {
     render(await api("/state"));
     roomRead = true;
-    if (pc && !connecting) {
-      const peer = pc,
-        r = await api("/signals?after=" + cursor);
-      cursor = r.cursor;
-      for (const m of r.messages) {
-        if (pc !== peer) break;
-        if (m.type === "answer" && peer.signalingState === "have-local-offer") {
-          await peer.setRemoteDescription(m.payload);
-          for (const candidate of candidates)
-            await peer.addIceCandidate(candidate);
-          candidates = [];
-        }
-        if (m.type === "candidate" && m.payload) {
-          if (peer.remoteDescription) await peer.addIceCandidate(m.payload);
-          else candidates.push(m.payload);
-        }
-        if (m.type === "reset") stopVideo();
-      }
-    }
+
   } catch (e) {
     if (e.status === 401) {
       csrf = "";
