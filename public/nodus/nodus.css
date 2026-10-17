@@ -357,6 +357,38 @@ textarea::placeholder {
   font-size: 10px;
   padding: 8px 0;
 }
+.about-nodus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 36px;
+  margin-top: 56px;
+  padding: 34px 0 40px;
+  border-top: 1px solid var(--line);
+}
+.about-copy p {
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #4a4a40;
+  margin: 0 0 14px;
+}
+.about-facts {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.about-facts dt {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  color: #817a6d;
+}
+.about-facts dd {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--ink);
+}
 footer {
   display: flex;
   justify-content: space-between;
@@ -467,6 +499,15 @@ footer {
   }
   .transcript {
     min-height: 130px;
+  }
+  .about-nodus {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-top: 36px;
+    padding: 26px 0 28px;
+  }
+  .about-copy p {
+    font-size: 14px;
   }
   footer {
     font-size: 7px;

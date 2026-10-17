@@ -23,13 +23,10 @@ if ($nodusGateway) {
     $nodusStarted = Start-Process -FilePath $nodusNode -ArgumentList @('server/local-preview.mjs', '--connect-private-nodus') -WorkingDirectory $nodusProject -WindowStyle Hidden -RedirectStandardOutput (Join-Path $nodusRuntime 'gateway.log') -RedirectStandardError (Join-Path $nodusRuntime 'gateway-error.log') -PassThru
     @{pid=$nodusStarted.Id;startTicks=$nodusStarted.StartTime.ToUniversalTime().Ticks} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $nodusRuntime 'gateway-process.json')
 }
-if (-not (Get-NetTCPConnection -LocalPort 5175 -State Listen -ErrorAction SilentlyContinue)) {
-    $nodusStarted = Start-Process -FilePath $nodusNode -ArgumentList @('server/site-preview.mjs') -WorkingDirectory $nodusProject -WindowStyle Hidden -RedirectStandardOutput (Join-Path $nodusRuntime 'site.log') -RedirectStandardError (Join-Path $nodusRuntime 'site-error.log') -PassThru
-    @{pid=$nodusStarted.Id;startTicks=$nodusStarted.StartTime.ToUniversalTime().Ticks} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $nodusRuntime 'vite-process.json')
-}
+# The room program now serves the built site itself; no separate site server is started.
 Write-Host 'Local website preview is starting. Warudo and the Nodus voice app must already be running.'
 Write-Host 'Camera publisher: http://127.0.0.1:8794/operator'
-Write-Host 'Visitor preview: http://127.0.0.1:5175/nodus/'
+Write-Host 'Visitor preview: http://127.0.0.1:8794/nodus/'
 Write-Host 'Choose Share Warudo window in the publisher. This does not make the demo public.'
 Start-Sleep -Seconds 2
 if (-not $NoBrowser) { Start-Process 'http://127.0.0.1:8794/operator' }

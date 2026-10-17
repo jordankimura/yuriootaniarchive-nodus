@@ -14,7 +14,7 @@ export async function assertPrivatePreview({ gateway, app, config, enabled }) {
       "The personal Nodus adapter is only available in an explicitly enabled loopback preview. A public profile with isolated memory and restricted tools is required before deployment.",
     );
 }
-export function speak(app, text, { timeoutMs = 490000, signal } = {}) {
+export function speak(app, text, { timeoutMs = 490000, signal, visitor } = {}) {
   if (signal?.aborted) return Promise.reject(Error("Voice reply cancelled."));
   return new Promise((resolve, reject) => {
     const url = new URL("/talk", app);
@@ -45,6 +45,7 @@ export function speak(app, text, { timeoutMs = 490000, signal } = {}) {
         JSON.stringify({
           type: "turn",
           text,
+          ...(visitor ? { visitor } : {}),
           model: "eleven_v4_turbo",
           performance: true,
         }),
@@ -106,7 +107,8 @@ export async function runWorker({
     config,
     enabled: allowPrivatePreview,
   });
-  let activeJob = null;
+  let activeJob = null,
+    visitorTurns = false;
   let busy = false,
     stopped = false;
   const heartbeat = async () => {
@@ -116,6 +118,7 @@ export async function runWorker({
         redirect: "error",
       });
       const s = await r.json();
+      visitorTurns = s.visitorTurns === true;
       const ready =
         r.ok &&
         s.hasVoiceKey &&
@@ -159,8 +162,14 @@ export async function runWorker({
           continue;
         }
         // This local pilot still uses Jordan's private voice channel. Never enable this adapter for public visitors.
-        const text = `Private website prototype: a visitor labelled ${job.name} asks the following. Answer in your usual voice; keep this reply brief.\n\n${job.text}`;
-        const speech = await speak(app, text, { signal });
+        // A current voice app frames the turn as the visitor; an older one still wraps everything as Jordan's speech.
+        const text = visitorTurns
+          ? job.text
+          : `A public website visitor labelled ${job.name}, who is not Jordan, asks the following. Keep this reply brief.\n\n${job.text}`;
+        const speech = await speak(app, text, {
+          signal,
+          visitor: visitorTurns ? job.name : undefined,
+        });
         await call("complete", {
           id: job.id,
           lease: job.lease,

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createGateway } from "./nodus-gateway.mjs";
 import { moveCamera } from "./local-camera.mjs";
-import { startSitePreview } from "./site-preview.mjs";
+import { fileURLToPath } from "node:url";
 const origin = "http://127.0.0.1:5175",
   token = "w".repeat(40);
 test("shared camera presets use a worker lease without speech generation or spending a turn", async (t) => {
@@ -114,11 +114,13 @@ test("native camera adapter accepts only the two known triggers and respects an 
   );
   assert.equal(calls.at(-1).op, "lease.release");
 });
-test("lightweight site server serves the built room and cannot proxy studio controls", async (t) => {
-  const server = startSitePreview({ port: 0 });
-  await new Promise((r) =>
-    server.listening ? r() : server.once("listening", r),
-  );
+test("the one local program serves the built room and keeps studio controls off the site path", async (t) => {
+  const server = createGateway({
+    secret: "s".repeat(40),
+    workerToken: token,
+    siteRoot: fileURLToPath(new URL("../dist/", import.meta.url)),
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
   t.after(() => new Promise((r) => server.close(r)));
   const base = "http://127.0.0.1:" + server.address().port;
   let r = await fetch(base + "/nodus/");
@@ -139,6 +141,25 @@ test("lightweight site server serves the built room and cannot proxy studio cont
   });
   assert.equal(r.status, 206);
   assert.equal((await r.arrayBuffer()).byteLength, 100);
-  r = await fetch(base + "/preview-health");
-  assert.equal((await r.json()).app, "nodus-static-preview");
+  r = await fetch(base + "/api/nodus/state");
+  assert.equal(r.status, 401);
+  r = await fetch(base + "/api/nodus/session", {
+    method: "POST",
+    headers: { Origin: base, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  assert.equal(r.status, 200);
+  r = await fetch(base + "/api/nodus/health");
+  assert.equal(r.status, 404);
+  r = await fetch(base + "/%2e%2e/package.json");
+  assert.ok([403, 404].includes(r.status));
+  assert.throws(() =>
+    createGateway({
+      secret: "s".repeat(40),
+      workerToken: token,
+      proxyToken: "p".repeat(40),
+      mode: "public",
+      siteRoot: "dist",
+    }),
+  );
 });

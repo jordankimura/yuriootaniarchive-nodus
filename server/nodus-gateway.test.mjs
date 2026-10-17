@@ -505,6 +505,7 @@ test("voice adapter acknowledges playback and waits for audio completion", async
     server.close();
   });
   let acknowledged = false;
+  const turns = [];
   wss.on("connection", (ws, req) => {
     assert.equal(
       req.headers.origin,
@@ -512,6 +513,7 @@ test("voice adapter acknowledges playback and waits for audio completion", async
     );
     ws.on("message", (raw) => {
       const e = JSON.parse(raw);
+      if (e.type === "turn") turns.push(e);
       if (e.type === "turn")
         ws.send(JSON.stringify({ type: "reply", text: "A fixture reply." }));
       if (e.type === "playback-ready") {
@@ -531,4 +533,10 @@ test("voice adapter acknowledges playback and waits for audio completion", async
     "A fixture reply.",
   );
   assert.equal(acknowledged, true);
+  assert.equal(turns[0].visitor, undefined);
+  await speak("http://127.0.0.1:" + server.address().port, "Hi", {
+    visitor: "Guest 412",
+  });
+  assert.equal(turns[1].visitor, "Guest 412");
+  assert.equal(turns[1].text, "Hi");
 });

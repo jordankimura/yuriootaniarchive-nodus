@@ -2,6 +2,7 @@ import http from "node:http";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { serveSite } from "./static-site.mjs";
 
 const equal = (a, b) =>
   typeof a === "string" &&
@@ -22,6 +23,7 @@ export function createGateway({
   now = Date.now,
   maxTurns = 60,
   cooldownMs = 20000,
+  siteRoot = "",
 } = {}) {
   if (!secret || secret.length < 32 || !workerToken || workerToken.length < 32)
     throw Error(
@@ -33,6 +35,8 @@ export function createGateway({
     throw Error("Choose a conversation cap of 1–1000 turns.");
   if (mode === "public" && (!proxyToken || proxyToken.length < 32))
     throw Error("Public mode requires a separate proxy secret.");
+  if (siteRoot && mode !== "local-preview")
+    throw Error("Only the local preview serves the website itself.");
   const origin = new URL(siteOrigin).origin;
   if (mode === "local-preview" && !loopback(new URL(origin).hostname))
     throw Error(
@@ -84,8 +88,16 @@ export function createGateway({
     });
     res.end(JSON.stringify(data));
   };
+  // When it also serves the site, the local room is its own origin.
   const allowed = (req) =>
-    !req.headers.origin || origins.has(req.headers.origin);
+    !req.headers.origin ||
+    origins.has(req.headers.origin) ||
+    (!!siteRoot && req.headers.origin === "http://" + req.headers.host);
+  const apiRoute = (route) =>
+    route.startsWith("/worker/") ||
+    route.startsWith("/operator") ||
+    route.startsWith("/turns/") ||
+    ["/session", "/state", "/signals", "/signal", "/turns", "/camera", "/health"].includes(route);
   const worker = (req) =>
     equal(req.headers.authorization, "Bearer " + workerToken);
   const validSignal = (type, payload) =>
@@ -213,8 +225,19 @@ export function createGateway({
   }
   const server = http.createServer(async (req, res) => {
     try {
-      const url = new URL(req.url, "http://gateway.local"),
-        route = url.pathname;
+      const url = new URL(req.url, "http://gateway.local");
+      let route = url.pathname;
+      // The bundled local site calls the room API under /api/nodus, as it does on Vercel.
+      // Only visitor routes are reachable there; worker and publisher controls never are.
+      if (siteRoot && route.startsWith("/api/nodus/")) {
+        route = route.slice("/api/nodus".length);
+        if (
+          route.startsWith("/worker/") ||
+          route.startsWith("/operator") ||
+          route === "/health"
+        )
+          return json(res, 404, { error: "Not found." });
+      }
       clean();
       if (mode === "local-preview") {
         if (
@@ -235,6 +258,13 @@ export function createGateway({
         !allowed(req)
       )
         return json(res, 403, { error: "This website origin is not allowed." });
+      if (
+        siteRoot &&
+        ["GET", "HEAD"].includes(req.method) &&
+        !apiRoute(route) &&
+        !url.pathname.startsWith("/api/")
+      )
+        return serveSite(req, res, siteRoot);
       if (route.startsWith("/worker/")) {
         if (!worker(req))
           return json(res, 401, { error: "Worker authentication required." });

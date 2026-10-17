@@ -8,16 +8,17 @@ Requires Node 22+ (tested on Node 24) and the existing Nodus voice app with its 
 
 ```sh
 npm ci
+npm run build
 npm run nodus:local -- --connect-private-nodus
-# In a second terminal:
-npm run dev
 ```
 
-- Website: `http://127.0.0.1:5175/nodus/`
+One local program on port 8794 serves the built site, the room API (under `/api/nodus/`, as on Vercel) and the camera publisher. Rebuild after editing the site, or run `npm run dev` for Vite's editing server on port 5175, which forwards the room API to 8794.
+
+- Website: `http://127.0.0.1:8794/nodus/`
 - Local camera publisher: `http://127.0.0.1:8794/operator`
 - Existing personal voice app, used only by the local worker: `http://127.0.0.1:8788`
 
-Use **Join the room** and send a short message. The gateway queues it, the local worker asks Nodus, and the existing voice controller performs the reply in Warudo. A turn finishes after audio playback finishes. The public transcript contains the visitor's message and Nodus's final spoken text. Tool output, reasoning, provider keys and local controller endpoints are not returned to the page.
+Use **Join the room** and send a short message. The gateway queues it, the local worker asks Nodus, and the existing voice controller performs the reply in Warudo. The worker sends the visitor's anonymous label (for example `Guest 412`) separately from their message, so the voice controller frames the turn as that visitor rather than as Jordan. An older voice controller without this support receives a text label saying the visitor is not Jordan instead. A turn finishes after audio playback finishes. The public transcript contains the visitor's message and Nodus's final spoken text. Tool output, reasoning, provider keys and local controller endpoints are not returned to the page.
 
 The local adapter still uses Jordan's existing private voice channel and memory. It is suitable for Jordan's own test, **not for untrusted visitors**. Its explicit flag, loopback checks and mode check are deliberate. The provided worker refuses public mode; changing the hostname is not a supported deployment method.
 
@@ -45,9 +46,10 @@ Fifteen website integration tests pass, including renewal of long replies, a har
 
 - Visitor sessions now expire after 30 idle minutes instead of 24 hours, unless the visitor has a turn waiting or in progress. An open tab keeps its session alive by polling. Previously, 100 visitors in one day would have filled the session cap until the next day.
 - A viewer tab now sends `leave` when its video stops or the page is closed. The publisher closes that peer connection immediately, and the gateway frees the tab's video slot ten seconds later, so reconnects no longer hit the three-connection limit.
-- The local preview accepts both `http://127.0.0.1:5175` and `http://localhost:5175`. Other origins and ports are still rejected.
+- The local preview accepts both `http://127.0.0.1` and `http://localhost` spellings of the site origin. Other origins and ports are still rejected.
+- Only visitor routes are reachable under `/api/nodus/` on the bundled local site; worker, publisher and health routes are not.
 
-Eighteen website integration tests cover these and the earlier cases.
+Eighteen website integration tests cover these, the bundled local site and the earlier cases.
 
 ## Queue and identity
 
