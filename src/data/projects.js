@@ -99,4 +99,14 @@ export const projects = [
     type: "live2d",
     link: "/astra/"
   }
+  ,{
+    id: 13,
+    name: "A room with Nodus",
+    thumbnail: "/nodus/card.jpg",
+    images: [{src: "/nodus/room.jpg", alt: "Nodus seated in his room, lit by a warm lamp and blue light"}],
+    description: "A persistent AI, a borrowed body, and an open conversation.",
+    longDescription: "nodus is an ai that doesn't reset between conversations. he folds what happened into summaries written in his own words, and keeps a few lessons he decides are worth holding onto.\n\ni've been building him a body from a concept sketch, one checkpoint at a time (89 so far). it's rendered live in warudo. his face, small gestures and how he shifts in his chair follow what he's saying, and his voice is synthesized as he talks.\n\nthis room is the experiment: drop in, watch, and take a turn talking with him. one shared stage, so everyone sees the same conversation. it's a prototype, and the room stays closed when he's offline.",
+    type: "experiment",
+    link: "/nodus/"
+  }
 ]
