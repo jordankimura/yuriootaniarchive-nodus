@@ -4,10 +4,8 @@ import { pathToFileURL } from "node:url";
 import { setTimeout as pause } from "node:timers/promises";
 const movementId = "5f546590-2b16-4b82-9509-2fdaf5a213dd";
 export async function moveCamera(preset, { request: injected } = {}) {
-  const triggers = {
-    conversation: "ConversationCamera",
-    wide: "WiderSeatedCamera",
-  };
+  // The wide shot is disabled; the website only returns to the close view.
+  const triggers = { conversation: "ConversationCamera" };
   if (!Object.hasOwn(triggers, preset))
     throw Error("Unsupported camera preset.");
   const request =

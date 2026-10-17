@@ -11,6 +11,8 @@ const equal = (a, b) =>
 const id = () => crypto.randomBytes(24).toString("base64url");
 const loopback = (host) =>
   ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
+// Idle visitors are dropped so a day of traffic cannot fill the session cap.
+const SESSION_IDLE_MS = 30 * 60 * 1000;
 export function createGateway({
   secret,
   workerToken,
@@ -36,6 +38,18 @@ export function createGateway({
     throw Error(
       "Private Nodus preview only accepts a loopback website origin.",
     );
+  // The local preview answers on both loopback spellings of the same port.
+  const origins = new Set([origin]);
+  if (mode === "local-preview")
+    for (const [from, to] of [
+      ["127.0.0.1", "localhost"],
+      ["localhost", "127.0.0.1"],
+    ])
+      if (new URL(origin).hostname === from) {
+        const alias = new URL(origin);
+        alias.hostname = to;
+        origins.add(alias.origin);
+      }
   const sessions = new Map(),
     operators = new Map(),
     jobs = [],
@@ -70,7 +84,8 @@ export function createGateway({
     });
     res.end(JSON.stringify(data));
   };
-  const allowed = (req) => !req.headers.origin || req.headers.origin === origin;
+  const allowed = (req) =>
+    !req.headers.origin || origins.has(req.headers.origin);
   const worker = (req) =>
     equal(req.headers.authorization, "Bearer " + workerToken);
   const validSignal = (type, payload) =>
@@ -102,13 +117,20 @@ export function createGateway({
   }
   function clean() {
     for (const [key, s] of sessions)
-      if (now() - s.seen > 86400000) {
+      if (
+        now() - s.seen > SESSION_IDLE_MS &&
+        !jobs.some(
+          (j) =>
+            j.visitor === key && ["queued", "processing"].includes(j.status),
+        )
+      ) {
         sessions.delete(key);
         for (const channel of signals.keys())
           if (channel.startsWith(key + ":")) signals.delete(channel);
       }
     for (const [channel, list] of signals)
-      if (now() - list.seen > 60000) signals.delete(channel);
+      if (now() - list.seen > 60000 || (list.left && now() - list.left > 10000))
+        signals.delete(channel);
     for (const [key, s] of operators)
       if (now() - s.created > 43200000) operators.delete(key);
     for (const [key, r] of rates)
@@ -455,8 +477,9 @@ export function createGateway({
         if (data.type === "offer") {
           if (
             !signals.has(channel) &&
-            [...signals.keys()].filter((key) => key.startsWith(s.id + ":"))
-              .length >= 3
+            [...signals].filter(
+              ([key, list]) => key.startsWith(s.id + ":") && !list.left,
+            ).length >= 3
           )
             return json(res, 429, {
               error:
@@ -470,6 +493,8 @@ export function createGateway({
         if (list.length >= 100)
           return json(res, 429, { error: "Too many signals." });
         list.seen = now();
+        // A closed tab frees its slot once the publisher has had time to read the leave.
+        if (data.type === "leave") list.left = now();
         list.push({
           seq: ++sequence,
           to: "publisher",

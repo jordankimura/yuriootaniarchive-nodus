@@ -88,7 +88,11 @@ test("native camera adapter accepts only the two known triggers and respects an 
   };
   await assert.rejects(moveCamera("arbitrary", { request }), /Unsupported/);
   assert.equal(calls.length, 0);
-  await assert.rejects(moveCamera("wide", { request }), /already moving/);
+  await assert.rejects(moveCamera("wide", { request }), /Unsupported/);
+  await assert.rejects(
+    moveCamera("conversation", { request }),
+    /already moving/,
+  );
   assert.equal(
     calls.some((c) => c.op === "lease.acquire"),
     false,

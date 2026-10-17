@@ -365,6 +365,93 @@ test("separate tabs keep independent video channels within one visitor session",
     0,
   );
 });
+test("idle sessions expire after 30 minutes unless the visitor has a turn waiting", async (t) => {
+  const { call, visitor, worker, tick } = await fixture(t);
+  const idle = await visitor(),
+    waiting = await visitor();
+  await worker("heartbeat", { ready: true });
+  assert.equal(
+    (
+      await call("/turns", {
+        method: "POST",
+        user: waiting,
+        body: { text: "still here", public: true },
+      })
+    ).status,
+    202,
+  );
+  tick(29 * 60 * 1000);
+  assert.equal((await call("/state", { user: idle })).status, 200);
+  tick(31 * 60 * 1000);
+  assert.equal((await call("/state", { user: idle })).status, 401);
+  assert.equal((await call("/state", { user: waiting })).status, 200);
+});
+test("a leaving tab reaches the publisher and frees its video slot", async (t) => {
+  const { base, call, visitor, tick } = await fixture(t);
+  const a = await visitor();
+  const op = await call("/operator/session", {
+    method: "POST",
+    body: {},
+    headers: { Origin: base },
+  });
+  const operatorHeaders = {
+    Cookie: op.cookie,
+    "X-Nodus-CSRF": op.data.csrf,
+    Origin: base,
+  };
+  const offer = (digit) =>
+    call("/signal", {
+      method: "POST",
+      user: a,
+      headers: { "X-Nodus-View": digit.repeat(32) },
+      body: { type: "offer", payload: { type: "offer", sdp: "tab " + digit } },
+    });
+  for (const digit of ["1", "2", "3"]) assert.equal((await offer(digit)).status, 200);
+  assert.equal((await offer("4")).status, 429);
+  assert.equal(
+    (
+      await call("/signal", {
+        method: "POST",
+        user: a,
+        headers: { "X-Nodus-View": "1".repeat(32) },
+        body: { type: "leave" },
+      })
+    ).status,
+    200,
+  );
+  const messages = (await call("/operator/signals", { headers: operatorHeaders }))
+    .data.messages;
+  assert.ok(messages.some((m) => m.type === "leave"));
+  assert.equal((await offer("4")).status, 200);
+  tick(10001);
+  assert.equal(
+    (
+      await call("/signals", {
+        user: a,
+        headers: { "X-Nodus-View": "1".repeat(32) },
+      })
+    ).data.messages.length,
+    0,
+  );
+});
+test("the local preview accepts both loopback spellings of the site origin only", async (t) => {
+  const { call } = await fixture(t);
+  for (const [site, status] of [
+    ["http://localhost:5175", 200],
+    ["http://127.0.0.1:5175", 200],
+    ["http://localhost:5176", 403],
+  ])
+    assert.equal(
+      (
+        await call("/session", {
+          method: "POST",
+          body: {},
+          headers: { Origin: site },
+        })
+      ).status,
+      status,
+    );
+});
 test("public mode requires proxy authentication and refuses the private Nodus adapter", async (t) => {
   const { call } = await fixture(t, {
     mode: "public",

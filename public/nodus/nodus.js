@@ -166,9 +166,28 @@ $("cancel").addEventListener("click", async () => {
     notice(e.message, true);
   }
 });
+// Tell the publisher to stop sending to this tab. keepalive lets it finish during page unload.
+function sendLeave() {
+  if (!csrf || !videoView) return;
+  void fetch("/api/nodus/signal", {
+    method: "POST",
+    keepalive: true,
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Nodus-CSRF": csrf,
+      "X-Nodus-View": videoView,
+    },
+    body: JSON.stringify({ type: "leave" }),
+  }).catch(() => {});
+}
+addEventListener("pagehide", () => {
+  if (pc) sendLeave();
+});
 function stopVideo() {
   const old = pc;
   pc = null;
+  if (old) sendLeave();
   old?.close();
   $("video").srcObject = null;
   $("video").hidden = true;
@@ -283,10 +302,11 @@ setInterval(async () => {
       $("cancel").hidden = true;
       $("presence").textContent = "● REJOIN";
       $("presence").classList.remove("open");
-      $("queue").textContent = "The room restarted. Join again to reconnect.";
+      $("queue").textContent =
+        "Your visit timed out or the room restarted. Join again to reconnect.";
       $("transcript").replaceChildren();
       notice(
-        "The room restarted. Your unsent message is still here; join again when you’re ready.",
+        "Your visit timed out or the room restarted. Your unsent message is still here; join again when you’re ready.",
       );
       return;
     }
