@@ -197,6 +197,20 @@ function stopVideo() {
   $("sound").hidden = true;
   retryAt = Date.now() + 10000;
 }
+// Wait briefly for the browser to collect its network addresses, so they travel
+// inside the offer: one request instead of dozens (a phone can have 30+).
+function gathered(peer, ms) {
+  return new Promise((resolve) => {
+    if (peer.iceGatheringState === "complete") return resolve();
+    const done = () => {
+      if (peer.iceGatheringState !== "complete") return;
+      peer.removeEventListener("icegatheringstatechange", done);
+      resolve();
+    };
+    peer.addEventListener("icegatheringstatechange", done);
+    setTimeout(resolve, ms);
+  });
+}
 async function connectVideo() {
   if (!globalThis.RTCPeerConnection) return;
   connecting = true;
@@ -213,9 +227,11 @@ async function connectVideo() {
     peer.addTransceiver("video", { direction: "recvonly" });
     peer.addTransceiver("audio", { direction: "recvonly" });
     const outgoing = [];
-    let offered = false;
+    let offered = false,
+      sealed = false;
     peer.onicecandidate = (e) => {
-      if (!e.candidate || pc !== peer) return;
+      // Addresses found before the offer is sealed are already inside it.
+      if (!e.candidate || pc !== peer || !sealed) return;
       const payload = e.candidate.toJSON();
       if (offered)
         void api("/signal", "POST", { type: "candidate", payload }).catch(
@@ -247,6 +263,8 @@ async function connectVideo() {
         stopVideo();
     };
     await peer.setLocalDescription(await peer.createOffer());
+    await gathered(peer, 3000);
+    sealed = true;
     await api("/signal", "POST", {
       type: "offer",
       payload: peer.localDescription.toJSON(),

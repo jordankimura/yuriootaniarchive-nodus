@@ -161,7 +161,7 @@ export function createGateway({
         : payload &&
           payload.type === type &&
           typeof payload.sdp === "string" &&
-          payload.sdp.length < 16000;
+          payload.sdp.length < 48000;
   function session(req) {
     const token = cookie(req, "nodus_stage");
     if (!token) return null;
@@ -473,7 +473,7 @@ export function createGateway({
           req.headers.origin !== new URL("http://" + req.headers.host).origin
         )
           return json(res, 403, { error: "Invalid publisher request." });
-        const data = await body(req);
+        const data = await body(req, 64000);
         if (route === "/operator/heartbeat") {
           publisherAt = now();
           videoSource = data.source === "camera" ? "camera" : "window";
@@ -566,7 +566,8 @@ export function createGateway({
           error: "Refresh the room before trying again.",
         });
       limit(req, door);
-      const data = await body(req);
+      // Offers carry their network addresses, so they can be larger than other requests.
+      const data = await body(req, route === "/signal" ? 64000 : 20000);
       if (route === "/signal" && req.method === "POST") {
         if (
           !["offer", "candidate", "leave"].includes(data.type) ||

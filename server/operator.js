@@ -251,6 +251,19 @@ $("source").addEventListener("change", async () => {
       ? "Open clean Warudo camera"
       : "Share Warudo window";
 });
+// Let the answer carry this PC's addresses, as the viewer's offer carries its own.
+function gathered(peer, ms) {
+  return new Promise((resolve) => {
+    if (peer.iceGatheringState === "complete") return resolve();
+    const done = () => {
+      if (peer.iceGatheringState !== "complete") return;
+      peer.removeEventListener("icegatheringstatechange", done);
+      resolve();
+    };
+    peer.addEventListener("icegatheringstatechange", done);
+    setTimeout(resolve, ms);
+  });
+}
 async function handle(m) {
   if (m.type === "leave") {
     peers.get(m.visitor)?.close();
@@ -276,9 +289,10 @@ async function handle(m) {
       }
     };
     const outgoing = [];
-    let answered = false;
+    let answered = false,
+      sealed = false;
     peer.onicecandidate = (e) => {
-      if (!e.candidate) return;
+      if (!e.candidate || !sealed) return;
       const payload = e.candidate.toJSON();
       if (answered)
         void api("signal", {
@@ -304,6 +318,8 @@ async function handle(m) {
       await peer.addIceCandidate(candidate);
     pending.delete(m.visitor);
     await peer.setLocalDescription(await peer.createAnswer());
+    await gathered(peer, 3000);
+    sealed = true;
     await api("signal", {
       visitor: m.visitor,
       type: "answer",

@@ -702,3 +702,17 @@ test("relay credentials come from the TURN key on this PC, are cached, filtered 
     createGateway({ secret: "s".repeat(40), workerToken: token, turn: { keyId: "x", apiToken: "y" } }),
   );
 });
+test("offers carrying their network addresses fit, while other requests keep the small limit", async (t) => {
+  const { call, visitor } = await fixture(t);
+  const user = await visitor();
+  const sdp = "v=0\r\n" + "a=candidate:1 1 udp 1 203.0.113.7 5000 typ relay\r\n".repeat(600);
+  assert.ok(sdp.length > 16000 && sdp.length < 48000);
+  assert.equal(
+    (await call("/signal", { method: "POST", user, headers: { "X-Nodus-View": "a".repeat(32) }, body: { type: "offer", payload: { type: "offer", sdp } } })).status,
+    200,
+  );
+  assert.equal(
+    (await call("/turns", { method: "POST", user, body: { text: "x".repeat(25000), public: true } })).status,
+    413,
+  );
+});

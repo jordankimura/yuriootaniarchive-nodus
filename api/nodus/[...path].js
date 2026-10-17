@@ -43,7 +43,7 @@ export default async function handler(req, res) {
     }
     const body =
       req.method === "GET" ? undefined : JSON.stringify(req.body || {});
-    if (body && Buffer.byteLength(body) > 20000)
+    if (body && Buffer.byteLength(body) > (path === "/signal" ? 64000 : 20000))
       return res.status(413).json({ error: "Request too large." });
     const forwarded = String(req.headers["x-forwarded-for"] || "")
       .split(",")[0]
