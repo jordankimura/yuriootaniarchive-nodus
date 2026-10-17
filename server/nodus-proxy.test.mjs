@@ -24,7 +24,10 @@ test("website proxy never exposes worker or operator routes and fails closed wit
     ["..", "worker", "config"],
   ]) {
     const res = response();
-    await handler({ query: { path }, method: "POST", headers: {} }, res);
+    await handler(
+      { url: "/api/nodus/" + path.join("/"), query: {}, method: "POST", headers: {} },
+      res,
+    );
     assert.equal(res.code, 404);
   }
   const saved = process.env.NODUS_GATEWAY_URL;
@@ -32,10 +35,23 @@ test("website proxy never exposes worker or operator routes and fails closed wit
   try {
     const res = response();
     await handler(
-      { query: { path: ["session"] }, method: "POST", headers: {} },
+      { url: "/api/nodus/session", query: {}, method: "POST", headers: {} },
       res,
     );
     assert.equal(res.code, 503);
+    // The route comes from the URL; a ?path= query cannot select or unlock one.
+    const forged = response();
+    await handler(
+      { url: "/api/nodus/missing?path=state", query: { path: "state" }, method: "GET", headers: {} },
+      forged,
+    );
+    assert.equal(forged.code, 404);
+    const state = response();
+    await handler(
+      { url: "/api/nodus/state?path=worker/claim", query: { path: "worker/claim" }, method: "GET", headers: {} },
+      state,
+    );
+    assert.equal(state.code, 503);
   } finally {
     if (saved) process.env.NODUS_GATEWAY_URL = saved;
   }
@@ -67,7 +83,7 @@ test("website proxy forwards only the intended visitor request and server-held c
     const res = response();
     await handler(
       {
-        query: { path: ["session"] },
+        url: "/api/nodus/session", query: {},
         method: "POST",
         body: {},
         headers: {
@@ -85,7 +101,7 @@ test("website proxy forwards only the intended visitor request and server-held c
     const wrong = response();
     await handler(
       {
-        query: { path: ["session"] },
+        url: "/api/nodus/session", query: {},
         method: "POST",
         body: {},
         headers: { origin: "https://elsewhere.example" },

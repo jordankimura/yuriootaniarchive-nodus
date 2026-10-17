@@ -2,10 +2,12 @@
 import process from "node:process";
 import { Buffer } from "node:buffer";
 export default async function handler(req, res) {
-  const pieces = Array.isArray(req.query.path)
-    ? req.query.path
-    : [req.query.path || ""];
-  const path = "/" + pieces.join("/");
+  // Read the route from the request URL. Vercel does not fill req.query.path for
+  // this catch-all outside Next.js, and a ?path= query must never pick the route.
+  const requested = new URL(req.url || "/", "http://site.local");
+  const path = requested.pathname.startsWith("/api/nodus/")
+    ? requested.pathname.slice("/api/nodus".length)
+    : "/";
   const allowed =
     (path === "/session" && req.method === "POST") ||
     (path === "/state" && req.method === "GET") ||
@@ -33,7 +35,7 @@ export default async function handler(req, res) {
       throw Error("Gateway configuration.");
     const url = new URL(path, base);
     if (path === "/signals") {
-      const after = String(req.query.after || "0");
+      const after = requested.searchParams.get("after") || "0";
       if (!/^\d{1,12}$/.test(after))
         return res.status(400).json({ error: "Invalid cursor." });
       url.searchParams.set("after", after);
