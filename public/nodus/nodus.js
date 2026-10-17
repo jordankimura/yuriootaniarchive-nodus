@@ -5,6 +5,8 @@ let playbackBlocked = false;
 let signalPolling = false;
 let signalFailures = 0;
 let roomReadFailed = false;
+let joining = false;
+let sessionRetryAt = 0;
 const CHAT_IDLE_MS = 30 * 60 * 1000;
 function transcriptForDisplay(s, time = Date.now()) {
   const messages = s.transcript;
@@ -30,6 +32,7 @@ let csrf = "",
   candidates = [];
 const notice = (text, error = false) => {
   $("notice").textContent = text;
+  $("notice").hidden = !text;
   $("notice").classList.toggle("error", error);
 };
 async function api(path, method = "GET", data) {
@@ -143,8 +146,14 @@ function render(s) {
       : "The room is quiet for now.";
 }
 async function join() {
+  if (joining || csrf) return;
+  joining = true;
   $("join").disabled = true;
-  notice("Opening the door…");
+  $("presence").textContent = "CONNECTING";
+  $("message").disabled = true;
+  $("send").disabled = true;
+  $("video-loading").hidden = false;
+  notice("Connecting to the room…");
   try {
     const s = await api("/session", "POST", {});
     csrf = s.csrf;
@@ -152,14 +161,18 @@ async function join() {
     $("identity").textContent = name;
     $("join").hidden = true;
     $("message-form").hidden = false;
-    notice(
-      "Your messages and Nodus’s replies are public to everyone in this room.",
-    );
+    roomReadFailed = false;
+    $("video-loading").hidden = true;
+    notice("");
     render(s);
-    if (matchMedia('(max-width: 760px)').matches) $("stage").scrollIntoView({ block: "start" });
-  } catch (e) {
-    notice(e.message, true);
+  } catch {
+    sessionRetryAt = Date.now() + 10000;
+    $("join").hidden = false;
+    $("video-loading").hidden = true;
+    $("presence").textContent = "RECONNECTING";
+    notice("Still connecting to the room. We’ll retry automatically.");
   } finally {
+    joining = false;
     $("join").disabled = false;
   }
 }
@@ -172,7 +185,7 @@ $("message").addEventListener("keydown", (event) => {
 });
 $("message-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (submitting || !state?.roomOpen) return;
+  if (submitting || !csrf || roomReadFailed || !state?.roomOpen) return;
   submitting = true;
   $("send").disabled = true;
   notice("Joining the queue…");
@@ -407,37 +420,44 @@ async function pollSignals() {
 }
 setInterval(() => void pollSignals(), 750);
 async function pollRoom() {
-  if (!csrf || polling) return;
+  if (!csrf) {
+    if (Date.now() >= sessionRetryAt) await join();
+    return;
+  }
+  if (polling) return;
   polling = true;
   try {
-    render(await api("/state"));
+    const nextState = await api("/state");
     if (roomReadFailed) {
       roomReadFailed = false;
-      notice("Connection restored. Your messages and Nodus’s replies are public to everyone in this room.");
+      notice("Connection restored.");
     }
+    render(nextState);
 
   } catch (e) {
     if (e.status === 401) {
+      stopVideo();
       csrf = "";
       state = null;
       lastTranscript = "";
       lastOwnStatus = "";
-      stopVideo();
-      $("join").hidden = false;
-      $("message-form").hidden = true;
+      retryAt = 0;
+      sessionRetryAt = 0;
+      $("message").disabled = true;
+      $("send").disabled = true;
       $("cancel").hidden = true;
-      $("presence").textContent = "REJOIN";
+      $("presence").textContent = "RECONNECTING";
       $("presence").classList.remove("open");
       $("queue").textContent =
-        "Your visit timed out or the room restarted. Join again to reconnect.";
-      $("transcript").replaceChildren();
+        "Reconnecting to the room…";
       notice(
-        "Your visit timed out or the room restarted. Your unsent message is still here; join again when you’re ready.",
+        "Refreshing your connection. Your unsent message is still here.",
       );
+      await join();
       return;
     }
     roomReadFailed = true;
-    notice("The connection was interrupted. Reconnecting…", true);
+    notice("The connection was interrupted. Reconnecting…");
     $("presence").textContent = "RECONNECTING";
     $("presence").classList.remove("open");
     $("send").disabled = true;
@@ -446,5 +466,14 @@ async function pollRoom() {
   }
 }
 setInterval(() => void pollRoom(), 1500);
-// Check availability without opening a visitor session or requesting device access.
-notice("A shared, public conversation. Please keep personal details private.");
+addEventListener("online", () => {
+  sessionRetryAt = 0;
+  void pollRoom();
+});
+// Watching and reading need no click or device permissions. Audio remains muted
+// until the visitor enables it, as required by mobile autoplay policies.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => void join(), { once: true });
+} else {
+  void join();
+}

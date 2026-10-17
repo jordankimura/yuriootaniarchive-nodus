@@ -10,7 +10,7 @@
       content="A shared room with Nodus. Watch, stay a while, and take a turn in the conversation."
     />
     <link rel="stylesheet" href="/nodus/nodus.css?v=20261017-room2" />
-    <script type="module" src="/nodus/nodus.js?v=20261017-room2"></script>
+    <script type="module" src="/nodus/nodus.js?v=20261017-room3"></script>
     <script type="module" src="/nodus/copy.js"></script>
   </head>
   <body>
@@ -58,7 +58,7 @@
               <p class="eyebrow" data-copy="text3">THE CONVERSATION</p>
               <h2 data-copy="text4">Pull up a chair.</h2>
             </div>
-            <span id="presence" class="presence">CLOSED</span>
+            <span id="presence" class="presence">CONNECTING</span>
           </div>
           <div class="room-note">
             One room, one conversation. Messages and Nodus’s replies are visible
@@ -82,10 +82,10 @@
             <div id="queue" class="queue">
               Visitors take turns; Nodus answers one at a time.
             </div>
-            <button id="join" class="primary">
-              Join the room
+            <button id="join" class="text-button" hidden>
+              Reconnect to the room
             </button>
-            <form id="message-form" hidden>
+            <form id="message-form">
               <label for="message" class="sr-only">Your public message</label
               ><textarea
                 id="message"
@@ -94,13 +94,14 @@
                 placeholder="Something on your mind?"
                 aria-describedby="message-hint"
                 required
+                disabled
               ></textarea>
               <p id="message-hint" class="message-hint">
                 Enter to send · Shift+Enter for a new line
               </p>
               <div class="composer-actions">
                 <span id="identity"></span
-                ><button id="send" class="primary" type="submit">
+                ><button id="send" class="primary" type="submit" disabled>
                   Take a turn
                 </button>
               </div>
@@ -108,10 +109,11 @@
             <button id="cancel" class="text-button" hidden>
               Leave the queue
             </button>
-            <p id="notice" class="notice" role="status">
+            <p id="privacy-note" class="notice">
               A shared, public conversation. Please keep personal details
               private.
             </p>
+            <p id="notice" class="notice" role="status" hidden></p>
           </div>
         </aside>
       </div>

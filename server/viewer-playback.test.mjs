@@ -5,7 +5,7 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../public/nodus/nodus.js', import.meta.url), 'utf8');
 function viewer(blocked = false, fetchImpl) {
-  const elements = new Map(), timers = new Map();
+  const elements = new Map(), timers = new Map(), domEvents = new Map();
   let peer, timerId = 0;
   const get = id => {
     if (!elements.has(id)) elements.set(id, {
@@ -26,7 +26,7 @@ function viewer(blocked = false, fetchImpl) {
     close() { this.closed = true; }
   }
   const context = vm.createContext({
-    document: {getElementById:get, createElement:tag=>({tag, children:[], append(...children) { this.children.push(...children); }}), createDocumentFragment:()=>({children:[],append(child) {this.children.push(child);}})}, addEventListener() {},
+    document: {readyState:'loading', addEventListener:(name, handler)=>domEvents.set(name, handler), getElementById:get, createElement:tag=>({tag, children:[], append(...children) { this.children.push(...children); }}), createDocumentFragment:()=>({children:[],append(child) {this.children.push(child);}})}, addEventListener() {},
     setInterval() {}, setTimeout(fn) { timers.set(++timerId, fn); return timerId; },
     clearTimeout(id) { timers.delete(id); },
     RTCPeerConnection:Peer, MediaStream: class { addTrack() {} },
@@ -34,8 +34,67 @@ function viewer(blocked = false, fetchImpl) {
     fetch: fetchImpl || (async () => ({ok:true, json:async()=>({iceServers:[]})})),
   });
   vm.runInContext(source, context);
-  return { get, timers, context, peer:()=>peer, run: code => vm.runInContext(code, context) };
+  return { get, timers, domEvents, context, peer:()=>peer, run: code => vm.runInContext(code, context) };
 }
+
+const session = {csrf:'session', name:'Visitor', roomOpen:true, videoAvailable:true, queue:[], mine:[], transcript:[]};
+
+test('opening the page automatically loads chat and starts muted video', async () => {
+  const calls = [];
+  const v = viewer(false, async url => {
+    calls.push(url);
+    return {ok:true, json:async()=>url.endsWith('/session') ? session : {iceServers:[]}};
+  });
+  v.domEvents.get('DOMContentLoaded')();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.filter(url=>url.endsWith('/session')).length, 1);
+  assert.ok(calls.includes('/api/nodus/signal'));
+  assert.equal(v.get('join').hidden, true);
+  assert.equal(v.get('message-form').hidden, false);
+  assert.equal(v.get('send').disabled, false);
+  assert.equal(v.get('video').muted, true);
+});
+
+test('session attempts do not overlap and failed startup retries automatically', async () => {
+  let rejectRequest, count = 0;
+  const v = viewer(false, () => {
+    count++;
+    return new Promise((resolve, reject) => { rejectRequest = reject; });
+  });
+  const attempt = v.run('join()');
+  await v.run('pollRoom()');
+  assert.equal(count, 1);
+  rejectRequest(Error('Temporary outage'));
+  await attempt;
+  await v.run('pollRoom()');
+  assert.equal(count, 1);
+  assert.equal(v.get('join').hidden, false);
+  v.run('sessionRetryAt = 0');
+  const retry = v.run('pollRoom()');
+  assert.equal(count, 2);
+  rejectRequest(Error('Temporary outage'));
+  await retry;
+});
+
+test('expired sessions reconnect without a click and preserve the draft', async () => {
+  const v = viewer(false, async url => url.endsWith('/state')
+    ? {ok:false, status:401, json:async()=>({error:'Expired'})}
+    : {ok:true, json:async()=>({...session, videoAvailable:false})});
+  v.run('csrf="expired"');
+  v.get('message').value = 'My unfinished message';
+  await v.run('pollRoom()');
+  assert.equal(v.run('csrf'), 'session');
+  assert.equal(v.get('presence').textContent, 'OPEN');
+  assert.equal(v.get('message').value, 'My unfinished message');
+  assert.equal(v.get('send').disabled, false);
+});
+
+test('public disclosure is static and separate from live connection notices', () => {
+  const html = fs.readFileSync(new URL('../public/nodus/index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="privacy-note"[^>]*>\s*A shared, public conversation\. Please keep personal details\s+private\./);
+  assert.match(html, /id="notice"[^>]*hidden><\/p>/);
+  assert.doesNotMatch(source, /\$\("privacy-note"\)/);
+});
 test('negotiated video keeps saved preview until actual playback', async () => {
   const v = viewer(); await v.run('connectVideo()');
   assert.equal(v.get('video-loading').hidden, false);
