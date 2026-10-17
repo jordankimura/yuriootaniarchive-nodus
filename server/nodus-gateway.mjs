@@ -45,6 +45,10 @@ export function createGateway({
   let workerAt = -Infinity,
     workerReady = false,
     workerBusy = false,
+    workerCamera = false,
+    cameraAt = -Infinity,
+    cameraPreset = "conversation",
+    videoSource = "window",
     publisherAt = -Infinity,
     active = null,
     turns = 0,
@@ -125,13 +129,34 @@ export function createGateway({
     return {
       mode,
       roomOpen: workerReady && now() - workerAt < 8000,
-      phase: active ? "replying" : workerBusy ? "busy" : "idle",
+      phase:
+        active?.type === "camera"
+          ? "camera"
+          : active
+            ? "replying"
+            : workerBusy
+              ? "busy"
+              : "idle",
+      cameraAvailable:
+        workerCamera &&
+        now() - workerAt < 8000 &&
+        !active &&
+        !workerBusy &&
+        !jobs.some((j) => j.status === "queued") &&
+        now() - cameraAt >= 8000,
+      cameraPreset,
+      videoSource,
       videoAvailable: now() - publisherAt < 8000,
       queue: jobs
         .filter((j) => j.status === "queued")
         .map((j) => ({ id: j.id, name: j.name, mine: j.visitor === s.id })),
       current: active
-        ? { id: active.id, name: active.name, mine: active.visitor === s.id }
+        ? {
+            id: active.id,
+            name: active.name,
+            type: active.type || "speech",
+            mine: active.visitor === s.id,
+          }
         : null,
       mine: jobs
         .filter((j) => j.visitor === s.id)
@@ -200,30 +225,36 @@ export function createGateway({
           workerAt = now();
           workerReady = data.ready === true;
           workerBusy = data.busy === true;
+          workerCamera = data.camera === true;
           return json(res, 200, { ok: true });
         }
         if (route === "/worker/claim") {
-          if (!workerReady || now() - workerAt >= 8000 || active)
+          if (now() - workerAt >= 8000 || active || workerBusy)
             return json(res, 200, { job: null });
           const job = jobs.find((j) => j.status === "queued");
           if (!job) return json(res, 200, { job: null });
+          if (!workerReady && job.type !== "camera")
+            return json(res, 200, { job: null });
           job.status = "processing";
           job.lease = id();
           job.expires = now() + 120000;
           active = job;
-          transcript.push({
-            id: ++sequence,
-            role: "visitor",
-            name: job.name,
-            text: job.text,
-            at: now(),
-          });
+          if (job.type !== "camera")
+            transcript.push({
+              id: ++sequence,
+              role: "visitor",
+              name: job.name,
+              text: job.text,
+              at: now(),
+            });
           return json(res, 200, {
             job: {
               id: job.id,
               lease: job.lease,
               name: job.name,
               text: job.text,
+              type: job.type || "speech",
+              preset: job.preset,
             },
           });
         }
@@ -234,7 +265,13 @@ export function createGateway({
             !equal(data.lease, active.lease)
           )
             return json(res, 409, { error: "This job is no longer active." });
-          if (
+          if (active.type === "camera") {
+            active.status = data.ok === true ? "complete" : "failed";
+            if (data.ok === true) cameraPreset = active.preset;
+            else
+              active.error =
+                "The camera could not move. Try again when Nodus is resting.";
+          } else if (
             data.ok === true &&
             typeof data.speech === "string" &&
             data.speech.trim() &&
@@ -316,6 +353,7 @@ export function createGateway({
         const data = await body(req);
         if (route === "/operator/heartbeat") {
           publisherAt = now();
+          videoSource = data.source === "camera" ? "camera" : "window";
           return json(res, 200, { ok: true });
         }
         if (route === "/operator/offline") {
@@ -436,6 +474,33 @@ export function createGateway({
           payload: data.payload,
         });
         return json(res, 200, { ok: true });
+      }
+      if (route === "/camera" && req.method === "POST") {
+        if (!["conversation", "wide"].includes(data.preset))
+          return json(res, 400, { error: "Choose the close or wide view." });
+        if (!workerCamera || now() - workerAt >= 8000)
+          return json(res, 503, { error: "The camera controls are offline." });
+        if (active || workerBusy || jobs.some((j) => j.status === "queued"))
+          return json(res, 409, {
+            error:
+              "Let Nodus finish this turn before changing the shared camera.",
+          });
+        if (now() - cameraAt < 8000)
+          return json(res, 429, {
+            error: "Give the camera a moment before changing it again.",
+          });
+        cameraAt = now();
+        const job = {
+          id: id(),
+          type: "camera",
+          preset: data.preset,
+          visitor: s.id,
+          name: s.name,
+          status: "queued",
+          created: now(),
+        };
+        jobs.push(job);
+        return json(res, 202, { id: job.id, ...state(s) });
       }
       if (route === "/turns" && req.method === "POST") {
         if (!workerReady || now() - workerAt >= 8000)

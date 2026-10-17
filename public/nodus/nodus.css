@@ -173,6 +173,20 @@ h1 em {
   padding: 8px 11px;
   font-size: 11px;
 }
+.camera-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.camera-controls button[aria-pressed="true"] {
+  border-color: #d1e2b6;
+  background: #4d604b99;
+}
+.stage video.window-feed {
+  top: -6%;
+  height: 106%;
+}
 .conversation {
   background: #f9f6eea8;
   border: 1px solid #fdfbf380;

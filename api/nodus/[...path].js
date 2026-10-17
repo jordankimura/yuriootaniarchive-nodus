@@ -12,6 +12,7 @@ export default async function handler(req, res) {
     (path === "/signals" && req.method === "GET") ||
     (path === "/signal" && req.method === "POST") ||
     (path === "/turns" && req.method === "POST") ||
+    (path === "/camera" && req.method === "POST") ||
     (/^\/turns\/[A-Za-z0-9_-]{32}$/.test(path) && req.method === "DELETE");
   res.setHeader("Cache-Control", "no-store");
   if (!allowed) return res.status(404).json({ error: "Not found." });

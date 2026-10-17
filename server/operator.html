@@ -59,15 +59,28 @@
     <p>LOCAL PREVIEW · OPERATOR WINDOW</p>
     <h1>Open the camera.</h1>
     <p>
-      Choose the <strong>Warudo output window</strong> in the sharing picker.
-      Only that window is sent to visitors in the preview. Check the image below
-      before anyone joins.
+      Choose the clean <strong>Warudo camera</strong> if available, or share its
+      output window. The outgoing feed is limited to 720p at 24 frames per
+      second. Keep Warudo open and unminimized so its output continues to
+      render.
     </p>
     <p>
       This first test shares video. To include Nodus’s voice, select a dedicated
       virtual cable carrying <em>only</em> his output. Leave audio off if you
       haven’t set up that route.
     </p>
+    <label for="source">Picture source</label
+    ><select id="source">
+      <option value="window">Warudo window</option>
+      <option value="camera" selected>
+        Warudo virtual camera (clean feed)
+      </option>
+    </select>
+    <small
+      >The clean feed has no mouse or window bar. Camera permission may briefly
+      open the default camera to reveal device names; that check is stopped and
+      never sent to viewers. Only a camera named Warudo can be published.</small
+    >
     <label for="audio">Nodus audio source</label
     ><select id="audio">
       <option value="">Video only</option></select
@@ -75,9 +88,10 @@
     ><small
       >Listing input names may ask for microphone permission. Nothing is
       recorded until you select a source and start sharing.</small
-    ><button id="share">Share Warudo window</button
+    ><button id="share">Open clean Warudo camera</button
     ><button id="stop" disabled>Close camera</button>
     <p id="status" role="status">Camera closed.</p>
+    <small id="stats" aria-live="polite"></small>
     <video id="preview" autoplay playsinline muted></video>
     <p>
       <a href="http://127.0.0.1:5175/nodus/" target="_blank" rel="noreferrer"

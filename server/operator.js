@@ -3,6 +3,7 @@ let csrf = "",
   stream = null,
   cursor = 0,
   polling = false;
+let sourceKind = "window";
 const peers = new Map(),
   pending = new Map();
 async function api(path, data) {
@@ -28,6 +29,8 @@ async function closeCamera() {
   $("preview").srcObject = null;
   $("share").disabled = false;
   $("stop").disabled = true;
+  $("audio").disabled = false;
+  $("devices").disabled = false;
   $("status").textContent = "Camera closed.";
   try {
     await api("offline", {});
@@ -55,10 +58,72 @@ $("share").addEventListener("click", async () => {
   try {
     const session = await api("session", {});
     csrf = session.csrf;
-    stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: 24, max: 30 } },
-      audio: false,
-    });
+    sourceKind = $("source").value;
+    if (sourceKind === "camera") {
+      let cameras = await navigator.mediaDevices.enumerateDevices();
+      if (
+        !cameras.some((d) => d.kind === "videoinput" && /warudo/i.test(d.label))
+      ) {
+        const probe = await navigator.mediaDevices.getUserMedia({
+          video: { width: 320, height: 180 },
+          audio: false,
+        });
+        probe.getTracks().forEach((t) => t.stop());
+        cameras = await navigator.mediaDevices.enumerateDevices();
+      }
+      const camera = cameras.find(
+        (d) => d.kind === "videoinput" && /warudo/i.test(d.label),
+      );
+      if (!camera)
+        throw Error(
+          "Warudo virtual camera was not found. Enable it in Warudo, or use window sharing. No camera is being published.",
+        );
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: { exact: camera.deviceId },
+          width: { ideal: 1280, max: 1280 },
+          height: { ideal: 720, max: 720 },
+          frameRate: { ideal: 24, max: 24 },
+        },
+        audio: false,
+      });
+      if (!/warudo/i.test(stream.getVideoTracks()[0].label))
+        throw Error(
+          "The selected camera was not Warudo. Nothing was published.",
+        );
+    } else {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 24, max: 24 },
+          cursor: "never",
+        },
+        audio: false,
+      });
+      // Some browsers ignore individual screen-capture constraints; read back the actual result below.
+      await stream
+        .getVideoTracks()[0]
+        .applyConstraints({
+          width: { max: 1280 },
+          height: { max: 720 },
+          frameRate: { max: 24 },
+          cursor: "never",
+        })
+        .catch(() =>
+          stream
+            .getVideoTracks()[0]
+            .applyConstraints({
+              width: { max: 1280 },
+              height: { max: 720 },
+              frameRate: { max: 24 },
+            })
+            .catch(() => {}),
+        );
+    }
+    stream.getVideoTracks()[0].contentHint = "motion";
+    $("preview").style.clipPath =
+      sourceKind === "window" ? "inset(6% 0 0 0)" : "none";
     if ($("audio").value) {
       const audio = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -77,12 +142,14 @@ $("share").addEventListener("click", async () => {
       .getVideoTracks()[0]
       .addEventListener("ended", () => void closeCamera(), { once: true });
     $("stop").disabled = false;
+    $("audio").disabled = true;
+    $("devices").disabled = true;
     $("status").textContent =
       "Camera open. Check that this is the Warudo output. " +
       (stream.getAudioTracks().length
         ? "Selected audio input is also shared."
         : "Video only; Nodus’s remote audio is not routed yet.");
-    await api("heartbeat", {});
+    await api("heartbeat", { source: sourceKind });
   } catch (e) {
     await closeCamera();
     $("status").textContent =
@@ -92,6 +159,13 @@ $("share").addEventListener("click", async () => {
   }
 });
 $("stop").addEventListener("click", () => void closeCamera());
+$("source").addEventListener("change", async () => {
+  if (stream) await closeCamera();
+  $("share").textContent =
+    $("source").value === "camera"
+      ? "Open clean Warudo camera"
+      : "Share Warudo window";
+});
 async function handle(m) {
   if (m.type === "leave") {
     peers.get(m.visitor)?.close();
@@ -128,7 +202,17 @@ async function handle(m) {
         }).catch(() => {});
       else outgoing.push(payload);
     };
-    for (const track of stream.getTracks()) peer.addTrack(track, stream);
+    for (const track of stream.getTracks()) {
+      const sender = peer.addTrack(track, stream);
+      if (track.kind === "video") {
+        const parameters = sender.getParameters();
+        if (!parameters.encodings?.length) parameters.encodings = [{}];
+        parameters.encodings[0].maxBitrate = 1600000;
+        parameters.encodings[0].maxFramerate = 24;
+        parameters.degradationPreference = "maintain-framerate";
+        await sender.setParameters(parameters).catch(() => {});
+      }
+    }
     await peer.setRemoteDescription(m.payload);
     for (const candidate of pending.get(m.visitor) || [])
       await peer.addIceCandidate(candidate);
@@ -156,7 +240,7 @@ setInterval(async () => {
   if (!stream || polling) return;
   polling = true;
   try {
-    await api("heartbeat", {});
+    await api("heartbeat", { source: sourceKind });
     const result = await api("signals?after=" + cursor);
     for (const m of result.messages) {
       try {
@@ -179,3 +263,31 @@ setInterval(async () => {
     polling = false;
   }
 }, 1000);
+setInterval(async () => {
+  if (!stream) {
+    $("stats").textContent = "";
+    return;
+  }
+  const settings = stream.getVideoTracks()[0].getSettings();
+  let text = `Source ${settings.width || "?"} × ${settings.height || "?"} · ${Math.round(settings.frameRate || 0)} FPS · ${peers.size} viewer${peers.size === 1 ? "" : "s"}`;
+  const peer = peers.values().next().value;
+  if (peer)
+    try {
+      const stats = await peer.getStats();
+      for (const report of stats.values())
+        if (
+          report.type === "outbound-rtp" &&
+          report.kind === "video" &&
+          !report.isRemote
+        ) {
+          text = `Sending ${report.frameWidth || settings.width} × ${report.frameHeight || settings.height} · ${Math.round(report.framesPerSecond || 0)} FPS · ${peers.size} viewer${peers.size === 1 ? "" : "s"}`;
+          if (report.qualityLimitationReason === "cpu")
+            text += " · encoder is busy";
+        }
+    } catch {
+      /* Capture settings still describe the source. */
+    }
+  if (sourceKind === "window" && settings.cursor && settings.cursor !== "never")
+    text += " · this browser did not hide the mouse; use the clean camera";
+  $("stats").textContent = text;
+}, 4000);

@@ -77,6 +77,7 @@ export async function runWorker({
   app = "http://127.0.0.1:8788",
   token,
   allowPrivatePreview = false,
+  setCamera,
   signal,
 } = {}) {
   if (!token) throw Error("A worker token is required.");
@@ -115,7 +116,11 @@ export async function runWorker({
         s.hasVoiceKey &&
         s.brainConnected &&
         (busy || (!s.busy && !s.brainBusy));
-      await call("heartbeat", { ready, busy });
+      await call("heartbeat", {
+        ready,
+        busy: busy || s.busy || s.brainBusy,
+        camera: typeof setCamera === "function",
+      });
     } catch {
       await call("heartbeat", { ready: false, busy }).catch(() => {});
     }
@@ -139,6 +144,13 @@ export async function runWorker({
       }
       busy = true;
       try {
+        if (job.type === "camera") {
+          if (typeof setCamera !== "function")
+            throw Error("Camera unavailable.");
+          await setCamera(job.preset);
+          await call("complete", { id: job.id, lease: job.lease, ok: true });
+          continue;
+        }
         // This local pilot still uses Jordan's private voice channel. Never enable this adapter for public visitors.
         const text = `Private website prototype: a visitor labelled ${job.name} asks the following. Answer in your usual voice; keep this reply brief.\n\n${job.text}`;
         const speech = await speak(app, text);

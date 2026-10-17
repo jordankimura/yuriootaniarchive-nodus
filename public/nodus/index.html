@@ -40,10 +40,30 @@
             ><span id="video-badge" class="badge">SAVED PREVIEW</span>
           </div>
           <div class="stage-bottom">
-            <span id="stage-caption">The room is quiet for now.</span
-            ><button id="sound" class="glass-button" hidden>
-              Enable sound
-            </button>
+            <span id="stage-caption">The room is quiet for now.</span>
+            <div
+              class="camera-controls"
+              role="group"
+              aria-label="Shared camera view"
+            >
+              <button
+                id="camera-close"
+                class="glass-button"
+                disabled
+                title="Change the shared camera to the close view"
+              >
+                Close view</button
+              ><button
+                id="camera-wide"
+                class="glass-button"
+                disabled
+                title="Change the shared camera to the wide view"
+              >
+                Wide view</button
+              ><button id="sound" class="glass-button" hidden>
+                Enable sound
+              </button>
+            </div>
           </div>
         </section>
         <aside class="conversation" aria-label="Shared conversation">

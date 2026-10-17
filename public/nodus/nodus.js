@@ -35,13 +35,22 @@ async function api(path, method = "GET", data) {
     throw Error("The room is not open yet. Please come back later.");
   }
   if (!res.ok)
-    throw Error(
-      result.error || "The room is unavailable. Please try again later.",
+    throw Object.assign(
+      Error(result.error || "The room is unavailable. Please try again later."),
+      { status: res.status },
     );
   return result;
 }
 function render(s) {
   state = s;
+  $("video").classList.toggle("window-feed", s.videoSource !== "camera");
+  for (const [id, preset] of [
+    ["camera-close", "conversation"],
+    ["camera-wide", "wide"],
+  ]) {
+    $(id).disabled = !s.cameraAvailable;
+    $(id).setAttribute("aria-pressed", String(s.cameraPreset === preset));
+  }
   $("presence").textContent = s.roomOpen ? "● OPEN" : "● CLOSED";
   $("presence").classList.toggle("open", s.roomOpen);
   const mine = s.queue.find((j) => j.mine),
@@ -56,15 +65,18 @@ function render(s) {
       : "Take a turn ↗";
   $("cancel").hidden = !mine;
   $("cancel").dataset.job = mine?.id || "";
-  $("queue").textContent = mine
-    ? `Your turn is ${s.queue.findIndex((j) => j.mine) + 1} in the queue.`
-    : active
-      ? "Nodus is answering you."
-      : s.current
-        ? `Nodus is answering ${s.current.name}. ${s.queue.length ? `${s.queue.length} waiting.` : ""}`
-        : s.roomOpen
-          ? "The floor is open. Say hello."
-          : "The room is quiet. Come back when Nodus is here.";
+  $("queue").textContent =
+    s.phase === "camera"
+      ? "Adjusting the shared camera…"
+      : mine
+        ? `Your turn is ${s.queue.findIndex((j) => j.mine) + 1} in the queue.`
+        : active
+          ? "Nodus is answering you."
+          : s.current
+            ? `Nodus is answering ${s.current.name}. ${s.queue.length ? `${s.queue.length} waiting.` : ""}`
+            : s.roomOpen
+              ? "The floor is open. Say hello."
+              : "The room is quiet. Come back when Nodus is here.";
   const signature = JSON.stringify(s.transcript);
   if (signature !== lastTranscript) {
     lastTranscript = signature;
@@ -124,6 +136,20 @@ async function join() {
   }
 }
 $("join").addEventListener("click", join);
+for (const [id, preset] of [
+  ["camera-close", "conversation"],
+  ["camera-wide", "wide"],
+])
+  $(id).addEventListener("click", async () => {
+    for (const button of ["camera-close", "camera-wide"])
+      $(button).disabled = true;
+    try {
+      render(await api("/camera", "POST", { preset }));
+      notice("Changing the camera for everyone in the room.");
+    } catch (e) {
+      notice(e.message, true);
+    }
+  });
 $("message-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (submitting || !state?.roomOpen) return;
@@ -261,6 +287,26 @@ setInterval(async () => {
       }
     }
   } catch (e) {
+    if (e.status === 401) {
+      csrf = "";
+      state = null;
+      lastTranscript = "";
+      lastOwnStatus = "";
+      stopVideo();
+      $("join").hidden = false;
+      $("message-form").hidden = true;
+      $("cancel").hidden = true;
+      $("camera-close").disabled = true;
+      $("camera-wide").disabled = true;
+      $("presence").textContent = "● REJOIN";
+      $("presence").classList.remove("open");
+      $("queue").textContent = "The room restarted. Join again to reconnect.";
+      $("transcript").replaceChildren();
+      notice(
+        "The room restarted. Your unsent message is still here; join again when you’re ready.",
+      );
+      return;
+    }
     if (roomRead) {
       stopVideo();
       notice("The camera is reconnecting. You can still use the conversation.");

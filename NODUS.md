@@ -29,6 +29,18 @@ The prototype uses WebRTC with HTTP signalling. Viewers do not grant microphone 
 
 Warudo's window is not the source of Nodus's synthesized audio: the existing controller plays it separately. Sharing the window therefore starts with **video only**. The publisher offers an optional audio input for a dedicated virtual cable carrying only Nodus's speech. Listing devices asks for input permission briefly, then closes the probe. Audio capture starts only when sharing starts with a selected source. Selecting the physical microphone would broadcast the room; leave the selector on Video only unless the routing is known. There is no visitor voice input in this version.
 
+## Capture, camera controls and restart update
+
+The publisher now defaults to Warudo's virtual camera, enabled and saved in the local cp87 scene. Four registered WarudoCam devices were found; the first selected device produced Nodus's clean image in Chrome. Camera permission may briefly open the browser's default camera solely to reveal device names; that probe stops before publishing. The publisher refuses to send a device whose label is not Warudo. If permission is already granted, no probe is needed. Leave the publisher tab open for the stream's lifetime.
+
+Source and sender are capped at 1280×720 / 24 FPS, with a 1.6 Mbps video limit and preference for maintaining frame rate. WebRTC can lower resolution under load. Operator diagnostics show actual output; the live clean-camera check reported about 23–24 FPS, adapting between 360p and 720p. The existing procedural idle remained enabled and changing. No full-machine/GPU benchmark or end-to-end latency measurement was performed. Window capture is a fallback: Chrome ignored `cursor: never` in the tested path, so the clean virtual camera is needed to exclude the mouse reliably. The viewer trims the top 6% of window captures for the title bar. No OS cursor settings are changed.
+
+**Close view** and **Wide view** enqueue two fixed native camera presets through the authenticated worker lease. They cannot pass arbitrary Warudo commands, spend no speech-generation turn, and do not invoke the model. Controls wait during a reply or queued turn and have an eight-second room-wide cooldown. The local adapter respects an existing hand-guided reframe. Browser testing moved Warudo to the saved wide coordinates and returned it to the conversation view. These change the stage for everyone, not just the person clicking.
+
+The Windows website launcher now serves the built site through a small loopback HTTP server instead of keeping Vite's watcher running. `npm run dev` remains available for editing. A local **Nodus Studio** desktop shortcut and orchestration script live in the vault under `Tools/Nodus Studio`, outside this public repository. They start the voice service before the saved Connectome recipe, use its headless mode with a Windows named pipe, open Warudo at 1280×720 if absent, and start the website. Existing services are reused. Typed chat starts neither Deepgram nor the microphone lip-sync helper. Scripts, Windows daemon transport and reuse of live services were checked; a complete cold start after reboot has not yet been observed. ElevenLabs keys remain memory-only and must be reloaded after restart.
+
+Thirteen integration tests, the production build, archive checks, focused lint and startup-script parsing passed after these changes. Native camera and existing-service startup reuse were checked live. The original ten-test result below describes the first prototype.
+
 ## Queue and identity
 
 - Signed, HttpOnly anonymous cookie; no IP address is treated as a person's identity.

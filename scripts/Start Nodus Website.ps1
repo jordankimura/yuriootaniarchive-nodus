@@ -1,8 +1,15 @@
+param([switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
 $nodusProject = Split-Path -Parent $PSScriptRoot
 $nodusRuntime = Join-Path $nodusProject '.local'
 $nodusNode = (Get-Command node -ErrorAction Stop).Source
 New-Item -ItemType Directory -Force -Path $nodusRuntime | Out-Null
+$nodusBuiltRoom = Join-Path $nodusProject 'dist\nodus\index.html'
+$nodusRoomSource = Get-ChildItem -LiteralPath (Join-Path $nodusProject 'public\nodus') -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+if (-not (Test-Path -LiteralPath $nodusBuiltRoom) -or $nodusRoomSource.LastWriteTimeUtc -gt (Get-Item -LiteralPath $nodusBuiltRoom).LastWriteTimeUtc) {
+    Push-Location $nodusProject
+    try { & npm.cmd run build *> (Join-Path $nodusRuntime 'build.log'); if ($LASTEXITCODE -ne 0) { throw 'The website build failed. See .local/build.log.' } } finally { Pop-Location }
+}
 if (-not (Test-Path -LiteralPath (Join-Path $nodusProject 'node_modules/vite/bin/vite.js'))) {
     throw 'Run npm ci in the website folder once before using this shortcut.'
 }
@@ -17,7 +24,7 @@ if ($nodusGateway) {
     @{pid=$nodusStarted.Id;startTicks=$nodusStarted.StartTime.ToUniversalTime().Ticks} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $nodusRuntime 'gateway-process.json')
 }
 if (-not (Get-NetTCPConnection -LocalPort 5175 -State Listen -ErrorAction SilentlyContinue)) {
-    $nodusStarted = Start-Process -FilePath $nodusNode -ArgumentList @('node_modules/vite/bin/vite.js') -WorkingDirectory $nodusProject -WindowStyle Hidden -RedirectStandardOutput (Join-Path $nodusRuntime 'vite.log') -RedirectStandardError (Join-Path $nodusRuntime 'vite-error.log') -PassThru
+    $nodusStarted = Start-Process -FilePath $nodusNode -ArgumentList @('server/site-preview.mjs') -WorkingDirectory $nodusProject -WindowStyle Hidden -RedirectStandardOutput (Join-Path $nodusRuntime 'site.log') -RedirectStandardError (Join-Path $nodusRuntime 'site-error.log') -PassThru
     @{pid=$nodusStarted.Id;startTicks=$nodusStarted.StartTime.ToUniversalTime().Ticks} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $nodusRuntime 'vite-process.json')
 }
 Write-Host 'Local website preview is starting. Warudo and the Nodus voice app must already be running.'
@@ -25,4 +32,4 @@ Write-Host 'Camera publisher: http://127.0.0.1:8794/operator'
 Write-Host 'Visitor preview: http://127.0.0.1:5175/nodus/'
 Write-Host 'Choose Share Warudo window in the publisher. This does not make the demo public.'
 Start-Sleep -Seconds 2
-Start-Process 'http://127.0.0.1:8794/operator'
+if (-not $NoBrowser) { Start-Process 'http://127.0.0.1:8794/operator' }
