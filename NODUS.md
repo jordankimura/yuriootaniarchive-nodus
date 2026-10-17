@@ -1,5 +1,28 @@
 # Nodus shared room prototype
 
+## Room text editor and mobile playback (October 17, 2026)
+
+Open `scripts/Edit Nodus Room.cmd`, then visit `http://127.0.0.1:5175/nodus-editor.html`.
+The editor saves the room's presentation text to `public/nodus/copy.json`; refresh
+the local room preview to see it. Run the normal build and deploy to update Vercel.
+The editor and its write endpoint exist only on the local development server.
+Public visitors cannot edit the site. Conversation messages and connection status
+are separate from the editable presentation text. HTML defaults remain available
+if the copy file cannot load. Decorative arrows and status dots were removed from
+the room without altering the rest of the portfolio.
+
+On narrow screens, joining now brings the video into view, and the conversation
+includes a link back to video and sound controls. The saved image stays visible
+until video actually plays. Blocked autoplay exposes a Play live video button;
+a connection that never starts times out after 30 seconds and retries. Sound
+still requires a visitor tap. Local live Warudo video was observed at phone width;
+this is not a physical iPhone Safari or remote-network verification.
+
+Validation: 21 existing integration tests and three new playback regression tests
+passed, along with the production build, static checks and focused viewer lint.
+The editor's Save text action was verified in the browser. These changes have not
+been deployed to Vercel.
+
 The `/nodus/` page adds a Warudo viewport and a public conversation to the existing archive. Everyone watches the same character. Visitors get an anonymous browser session and take turns through a queue. This branch does **not** deploy or enable public access to Jordan's personal agent.
 
 ## Run locally

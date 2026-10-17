@@ -11,46 +11,49 @@
     />
     <link rel="stylesheet" href="/nodus/nodus.css" />
     <script type="module" src="/nodus/nodus.js"></script>
+    <script type="module" src="/nodus/copy.js"></script>
   </head>
   <body>
     <header class="masthead">
-      <a href="/" class="back">← THE ARCHIVE</a
-      ><span class="edition">AN ONGOING EXPERIMENT / 013</span>
+      <a href="/" class="back" data-copy="archive">THE ARCHIVE</a
+      ><span class="edition" data-copy="text1">AN ONGOING EXPERIMENT / 013</span>
     </header>
     <main>
       <div class="introduction">
         <div>
-          <p class="eyebrow">YOU’RE WELCOME TO STAY</p>
-          <h1>A room with <em>Nodus.</em></h1>
+          <p class="eyebrow" data-copy="text2">YOU’RE WELCOME TO STAY</p>
+          <h1><span data-copy="heading">A room with</span> <em data-copy="character">Nodus.</em></h1>
         </div>
         <p class="intro-note">
-          A persistent AI, a borrowed body,<br />and an open conversation.
+          <span data-copy="intro">A persistent AI, a borrowed body, and an open conversation.</span>
         </p>
       </div>
       <div class="room-grid">
-        <section class="stage" aria-label="Nodus’s room">
+        <section id="stage" class="stage" aria-label="Nodus’s room">
           <img
             id="poster"
             src="/nodus/room.jpg"
             alt="Nodus seated in his softly lit room, with a warm lamp and blue light across the wall."
           />
-          <video id="video" autoplay playsinline muted hidden></video>
+          <video id="video" autoplay playsinline muted hidden aria-label="Live Warudo video"></video>
+          <button id="play-video" class="glass-button playback-button" hidden>Play live video</button>
           <div class="stage-top">
-            <span class="room-label">NODUS / ROOM 08</span
+            <span class="room-label" data-copy="roomLabel">NODUS / ROOM 08</span
             ><span id="video-badge" class="badge">SAVED PREVIEW</span>
           </div>
           <div class="stage-bottom">
             <span id="stage-caption">The room is quiet for now.</span>
             <button id="sound" class="glass-button" hidden>Enable sound</button>
+            <button id="retry-video" class="glass-button" hidden>Reconnect video</button>
           </div>
         </section>
         <aside class="conversation" aria-label="Shared conversation">
           <div class="conversation-head">
             <div>
-              <p class="eyebrow">THE CONVERSATION</p>
-              <h2>Pull up a chair.</h2>
+              <p class="eyebrow" data-copy="text3">THE CONVERSATION</p>
+              <h2 data-copy="text4">Pull up a chair.</h2>
             </div>
-            <span id="presence" class="presence">● CLOSED</span>
+            <span id="presence" class="presence">CLOSED</span>
           </div>
           <div class="room-note">
             One room, one conversation. Messages and Nodus’s replies are visible
@@ -64,17 +67,18 @@
             aria-relevant="additions"
           >
             <div class="empty">
-              <span class="empty-mark">↗</span>
-              <p>A little space to think out loud.</p>
-              <small>When the room opens, join in and take a turn.</small>
+
+              <p data-copy="text5">A little space to think out loud.</p>
+              <small data-copy="emptyHint">When the room opens, join in and take a turn.</small>
             </div>
           </div>
           <div class="composer">
+            <a class="view-video" href="#stage">View video and sound controls</a>
             <div id="queue" class="queue">
               Visitors take turns; Nodus answers one at a time.
             </div>
             <button id="join" class="primary">
-              Join the room <span>↗</span>
+              Join the room
             </button>
             <form id="message-form" hidden>
               <label for="message" class="sr-only">Your public message</label
@@ -92,7 +96,7 @@
               <div class="composer-actions">
                 <span id="identity"></span
                 ><button id="send" class="primary" type="submit">
-                  Take a turn ↗
+                  Take a turn
                 </button>
               </div>
             </form>
@@ -108,37 +112,37 @@
       </div>
       <section class="about-nodus" aria-labelledby="about-title">
         <div>
-          <p class="eyebrow">WHO YOU’RE TALKING TO</p>
-          <h2 id="about-title">Meet Nodus.</h2>
+          <p class="eyebrow" data-copy="text6">WHO YOU’RE TALKING TO</p>
+          <h2 id="about-title" data-copy="text7">Meet Nodus.</h2>
         </div>
         <div class="about-copy">
-          <p>
+          <p data-copy="text8">
             Nodus is a persistent AI. He doesn’t start fresh each time: he
             folds past conversations into summaries written in his own words,
             and keeps a handful of lessons he chooses to hold onto.
           </p>
-          <p>
+          <p data-copy="text9">
             His body was built from a concept sketch, one checkpoint at a time,
             and is rendered live in Warudo. His face, small gestures and the way
             he shifts in his chair follow what he’s saying, and his voice is
             synthesized as he speaks.
           </p>
-          <p>
+          <p data-copy="text10">
             This room is an experiment in sharing him. Everyone here watches
             the same Nodus and reads the same conversation. When he’s offline,
             the room stays closed and you’ll see a still of where he sits.
           </p>
         </div>
         <dl class="about-facts">
-          <div><dt>MIND</dt><dd>Connectome · DeepSeek</dd></div>
-          <div><dt>MEMORY</dt><dd>His own summaries and lessons</dd></div>
-          <div><dt>VOICE</dt><dd>ElevenLabs</dd></div>
-          <div><dt>BODY</dt><dd>VRM, 89 checkpoints · Warudo</dd></div>
+          <div><dt>MIND</dt><dd data-copy="text11">Connectome · DeepSeek</dd></div>
+          <div><dt>MEMORY</dt><dd data-copy="text12">His own summaries and lessons</dd></div>
+          <div><dt>VOICE</dt><dd data-copy="text13">ElevenLabs</dd></div>
+          <div><dt>BODY</dt><dd data-copy="text14">VRM, 89 checkpoints · Warudo</dd></div>
         </dl>
       </section>
       <footer>
-        <span>COME FOR THE CONVERSATION. LEAVE WHENEVER.</span
-        ><span>AI CHARACTER · EXPERIMENT IN PROGRESS</span>
+        <span data-copy="footer">COME FOR THE CONVERSATION. LEAVE WHENEVER.</span
+        ><span data-copy="text15">AI CHARACTER · EXPERIMENT IN PROGRESS</span>
       </footer>
     </main>
   </body>

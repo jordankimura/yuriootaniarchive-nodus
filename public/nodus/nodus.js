@@ -1,5 +1,7 @@
 const $ = (id) => document.getElementById(id);
 let videoView = "";
+let connectionTimer = null;
+let playbackBlocked = false;
 let csrf = "",
   name = "",
   state = null,
@@ -44,7 +46,7 @@ async function api(path, method = "GET", data) {
 function render(s) {
   state = s;
   $("video").classList.toggle("window-feed", s.videoSource !== "camera");
-  $("presence").textContent = s.roomOpen ? "● OPEN" : "● CLOSED";
+  $("presence").textContent = s.roomOpen ? "OPEN" : "CLOSED";
   $("presence").classList.toggle("open", s.roomOpen);
   const mine = s.queue.find((j) => j.mine),
     active = s.current?.mine,
@@ -55,7 +57,7 @@ function render(s) {
     ? "Nodus is replying…"
     : mine
       ? "In the queue"
-      : "Take a turn ↗";
+      : "Take a turn";
   $("cancel").hidden = !mine;
   $("cancel").dataset.job = mine?.id || "";
   $("queue").textContent =
@@ -103,7 +105,7 @@ function render(s) {
   if (s.videoAvailable && !pc && !connecting && Date.now() > retryAt)
     void connectVideo();
   if (!s.videoAvailable && pc) stopVideo();
-  if (!pc)
+  if (!pc && !connecting)
     $("stage-caption").textContent = s.roomOpen
       ? "Nodus is here. The camera is resting."
       : "The room is quiet for now.";
@@ -122,6 +124,7 @@ async function join() {
       "Your messages and Nodus’s replies are public to everyone in this room.",
     );
     render(s);
+    if (matchMedia('(max-width: 760px)').matches) $("stage").scrollIntoView({ block: "start" });
   } catch (e) {
     notice(e.message, true);
   } finally {
@@ -182,9 +185,11 @@ function sendLeave() {
   }).catch(() => {});
 }
 addEventListener("pagehide", () => {
-  if (pc) sendLeave();
+  stopVideo();
 });
 function stopVideo() {
+  clearTimeout(connectionTimer);
+  playbackBlocked = false;
   const old = pc;
   pc = null;
   if (old) sendLeave();
@@ -195,6 +200,10 @@ function stopVideo() {
   $("video-badge").textContent = "SAVED PREVIEW";
   $("video-badge").classList.remove("live");
   $("sound").hidden = true;
+  $("sound").textContent = "Enable sound";
+  $("video").muted = true;
+  $("play-video").hidden = true;
+  $("retry-video").hidden = !state?.videoAvailable;
   retryAt = Date.now() + 10000;
 }
 // Wait briefly for the browser to collect its network addresses, so they travel
@@ -217,6 +226,9 @@ async function connectVideo() {
   videoView = crypto.randomUUID().replaceAll("-", "");
   cursor = 0;
   candidates = [];
+  $("video-badge").textContent = "CONNECTING";
+  $("stage-caption").textContent = "Connecting to the live camera…";
+  $("retry-video").hidden = false;
   try {
     // Relay (TURN) servers let viewers on strict networks, such as mobile carriers, connect.
     const iceServers = await api("/ice")
@@ -224,6 +236,12 @@ async function connectVideo() {
       .catch(() => [{ urls: "stun:stun.l.google.com:19302" }]);
     const peer = new RTCPeerConnection({ iceServers });
     pc = peer;
+    // Track arrival only confirms negotiation, not that any frames are playing.
+    connectionTimer = setTimeout(() => {
+      if (pc !== peer || playbackBlocked) return;
+      stopVideo();
+      $("stage-caption").textContent = "The camera did not start. Retrying shortly…";
+    }, 30000);
     peer.addTransceiver("video", { direction: "recvonly" });
     peer.addTransceiver("audio", { direction: "recvonly" });
     const outgoing = [];
@@ -246,14 +264,26 @@ async function connectVideo() {
       video.srcObject.addTrack(e.track);
       if (e.track.kind === "video") {
         video.hidden = false;
-        $("poster").hidden = true;
-        $("video-badge").textContent = "LIVE";
-        $("video-badge").classList.add("live");
-        $("stage-caption").textContent =
-          "One room. Everyone is watching the same Nodus.";
+        video.onplaying = () => {
+          if (pc !== peer || !video.videoWidth) return;
+          clearTimeout(connectionTimer);
+          playbackBlocked = false;
+          $("poster").hidden = true;
+          $("play-video").hidden = true;
+          $("retry-video").hidden = true;
+          $("video-badge").textContent = "LIVE";
+          $("video-badge").classList.add("live");
+          $("stage-caption").textContent = "One room. Everyone is watching the same Nodus.";
+        };
       }
       if (e.track.kind === "audio") $("sound").hidden = false;
-      void video.play().catch(() => {});
+      void video.play().catch((error) => {
+        if (pc !== peer || error.name !== "NotAllowedError") return;
+        playbackBlocked = true;
+        $("play-video").hidden = false;
+        $("video-badge").textContent = "TAP TO PLAY";
+        $("stage-caption").textContent = "Tap Play live video to start playback.";
+      });
     };
     peer.onconnectionstatechange = () => {
       if (
@@ -264,6 +294,7 @@ async function connectVideo() {
     };
     await peer.setLocalDescription(await peer.createOffer());
     await gathered(peer, 3000);
+    if (pc !== peer) return;
     sealed = true;
     await api("/signal", "POST", {
       type: "offer",
@@ -282,7 +313,23 @@ $("sound").addEventListener("click", () => {
   const video = $("video");
   video.muted = !video.muted;
   $("sound").textContent = video.muted ? "Enable sound" : "Mute sound";
-  void video.play().catch(() => {});
+  void video.play().catch(() => {
+    video.muted = true;
+    $("sound").textContent = "Enable sound";
+    $("play-video").hidden = false;
+    $("stage-caption").textContent = "Playback was paused. Tap Play live video, then Enable sound.";
+  });
+});
+$("play-video").addEventListener("click", () => {
+  void $("video").play().catch(() => {
+    $("stage-caption").textContent = "Playback could not start. Try Reconnect video.";
+  });
+});
+$("retry-video").addEventListener("click", () => {
+  if (connecting) return;
+  stopVideo();
+  retryAt = 0;
+  if (csrf && state?.videoAvailable) void connectVideo();
 });
 setInterval(async () => {
   if (!csrf || polling) return;
@@ -320,7 +367,7 @@ setInterval(async () => {
       $("join").hidden = false;
       $("message-form").hidden = true;
       $("cancel").hidden = true;
-      $("presence").textContent = "● REJOIN";
+      $("presence").textContent = "REJOIN";
       $("presence").classList.remove("open");
       $("queue").textContent =
         "Your visit timed out or the room restarted. Join again to reconnect.";
@@ -336,7 +383,7 @@ setInterval(async () => {
       return;
     }
     notice(e.message, true);
-    $("presence").textContent = "● RECONNECTING";
+    $("presence").textContent = "RECONNECTING";
     $("presence").classList.remove("open");
     $("send").disabled = true;
   } finally {

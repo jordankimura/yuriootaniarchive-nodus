@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nodus room text editor</title>
+<style>
+body{font:16px system-ui;margin:0;background:#e8e2d6;color:#302e28}main{max-width:850px;margin:40px auto;padding:24px}h1{font:42px Georgia}label{display:block;margin:24px 0 6px}textarea{box-sizing:border-box;width:100%;padding:12px;font:16px/1.5 system-ui;border:1px solid #aaa293;background:#fffcf6;border-radius:4px}button,a{font:inherit}button{background:#343b31;color:white;padding:12px 24px;border:0;border-radius:4px;cursor:pointer}nav{position:sticky;top:0;padding:16px;background:#e8e2d6;border-bottom:1px solid #bdb6a8;display:flex;gap:20px;align-items:center}#status{line-height:1.5}
+</style>
+<main>
+<h1>Nodus room text</h1>
+<p>Edit the text below and save it to your site files. Changes appear in your local preview immediately after reloading. Your public site updates after deployment.</p>
+<nav><button form="editor">Save text</button><a href="/nodus/" target="_blank" rel="noopener">Open room preview</a></nav>
+<p id="status" role="status">Loading text…</p>
+<form id="editor"></form>
+</main>
+<script type="module">
+const form = document.querySelector('#editor'), status = document.querySelector('#status');
+let saved = '';
+try {
+  const response = await fetch('/nodus/copy.json');
+  if (!response.ok) throw new Error('Could not load the room text.');
+  const copy = await response.json();
+  for (const [key, value] of Object.entries(copy)) {
+    const label = document.createElement('label'), field = document.createElement('textarea');
+    label.htmlFor = key; label.textContent = value.length > 75 ? value.slice(0, 75) + '…' : value;
+    field.id = key; field.name = key; field.value = value; field.maxLength = 4000;
+    field.rows = value.length > 120 ? 4 : 2;
+    form.append(label, field);
+  }
+  saved = JSON.stringify(Object.fromEntries(new FormData(form)));
+  status.textContent = 'Ready to edit.';
+} catch (error) { status.textContent = error.message; }
+form.addEventListener('submit', async event => {
+  event.preventDefault();
+  const body = JSON.stringify(Object.fromEntries(new FormData(form)));
+  status.textContent = 'Saving…';
+  try {
+    const response = await fetch('/__nodus-copy', { method: 'PUT', headers: {'Content-Type':'application/json'}, body });
+    if (!response.ok) throw new Error('Save failed. Open this editor through the local editing server on port 5175.');
+    saved = body;
+    status.textContent = 'Saved to your site files. Reload the room preview to see your changes. Deploy when you are ready to update the public site.';
+  } catch (error) { status.textContent = error.message; }
+});
+addEventListener('beforeunload', event => {
+  if (saved && saved !== JSON.stringify(Object.fromEntries(new FormData(form)))) { event.preventDefault(); event.returnValue = ''; }
+});
+</script>
+</html>
