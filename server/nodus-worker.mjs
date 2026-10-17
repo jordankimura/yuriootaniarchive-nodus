@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import { setTimeout as pause } from "node:timers/promises";
 const loopback = (url) =>
   ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname);
+const turnError = (message, outcome = "unknown") => Object.assign(Error(message), { outcome });
 // The personal adapter always runs on this PC. Public visitors reach it only when
 // Jordan explicitly opens the public room; otherwise a public profile is required.
 export async function assertPrivatePreview({
@@ -31,7 +32,7 @@ export function speak(app, text, { timeoutMs = 490000, signal, visitor } = {}) {
       origin: new URL(app).origin,
       maxPayload: 2 * 1024 * 1024,
     });
-    let speech = "",
+    let speech = "", outcome = "complete",
       finished = false;
     const finish = (error) => {
       if (finished) return;
@@ -40,10 +41,10 @@ export function speak(app, text, { timeoutMs = 490000, signal, visitor } = {}) {
       signal?.removeEventListener("abort", cancel);
       ws.close();
       if (error) reject(error);
-      else resolve(speech);
+      else resolve({ speech, outcome });
     };
     const timer = setTimeout(
-      () => finish(Error("Voice reply timed out.")),
+      () => finish(turnError("Voice reply timed out.")),
       timeoutMs,
     );
     const cancel = () => finish(Error("Voice reply cancelled."));
@@ -71,17 +72,21 @@ export function speak(app, text, { timeoutMs = 490000, signal, visitor } = {}) {
         speech = typeof e.text === "string" ? e.text : "";
         ws.send(JSON.stringify({ type: "playback-ready" }));
       }
+      if (e.type === "quiet" && !speech) {
+        outcome = "quiet";
+        finish();
+      }
       if (e.type === "audio-end")
-        finish(speech ? null : Error("No spoken reply."));
+        finish(speech.trim() ? null : turnError("No spoken reply."));
       if (e.type === "error")
-        finish(Error("Nodus could not finish the voice reply."));
+        finish(turnError("Nodus could not finish the voice reply.", e.outcome === "failed" ? "failed" : "unknown"));
     });
     ws.on("error", () =>
-      finish(Error("Could not reach the local Nodus voice app.")),
+      finish(turnError("Could not reach the local Nodus voice app.")),
     );
     ws.on("close", () => {
       if (!finished)
-        finish(Error("The voice connection ended before the reply finished."));
+        finish(turnError("The voice connection ended before the reply finished."));
     });
   });
 }
@@ -176,7 +181,7 @@ export async function runWorker({
         const text = visitorTurns
           ? job.text
           : `A public website visitor labelled ${job.name}, who is not Jordan, asks the following. Keep this reply brief.\n\n${job.text}`;
-        const speech = await speak(app, text, {
+        const result = await speak(app, text, {
           signal,
           visitor: visitorTurns ? job.name : undefined,
         });
@@ -184,13 +189,14 @@ export async function runWorker({
           id: job.id,
           lease: job.lease,
           ok: true,
-          speech,
+          ...result,
         });
-      } catch {
+      } catch (error) {
         await call("complete", {
           id: job.id,
           lease: job.lease,
           ok: false,
+          outcome: error.outcome === "failed" ? "failed" : "unknown",
         }).catch(() => {});
         console.error("A website preview turn failed; it was not retried.");
       } finally {

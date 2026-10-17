@@ -9,8 +9,8 @@
       name="description"
       content="A shared room with Nodus. Watch, stay a while, and take a turn in the conversation."
     />
-    <link rel="stylesheet" href="/nodus/nodus.css?v=20261017-stream-layout" />
-    <script type="module" src="/nodus/nodus.js?v=20261017-room3"></script>
+    <link rel="stylesheet" href="/nodus/nodus.css?v=20261017-turn-states" />
+    <script type="module" src="/nodus/nodus.js?v=20261017-turn-states"></script>
     <script type="module" src="/nodus/copy.js"></script>
   </head>
   <body>
@@ -56,6 +56,10 @@
           <div class="conversation-head">
             <h2 data-copy="text3">Live chat</h2>
             <span id="presence" class="presence">CONNECTING</span>
+          </div>
+          <div id="turn-status" class="turn-status" role="status" hidden>
+            <strong id="turn-state-label"></strong>
+            <span id="turn-state-detail"></span>
           </div>
           <div
             id="transcript"

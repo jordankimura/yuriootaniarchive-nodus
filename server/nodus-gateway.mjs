@@ -198,8 +198,9 @@ export function createGateway({
     for (const [key, r] of rates)
       if (now() - r.start > 60000) rates.delete(key);
     if (active && now() > active.expires) {
-      active.status = "failed";
-      active.error = "The reply timed out. It was not retried.";
+      active.status = "unknown";
+      active.finishedAt = now();
+      active.error = "No confirmed outcome arrived before the timeout. This does not mean Nodus chose silence.";
       active = null;
     }
     while (
@@ -210,8 +211,15 @@ export function createGateway({
   }
   function state(s) {
     clean();
+    const latest = jobs.findLast(j => j.type !== "camera" && ["complete", "quiet", "failed", "unknown"].includes(j.status));
+    const activity = active && active.type !== "camera"
+      ? { state: workerReady && now() - workerAt < 8000 ? "working" : "unknown", at: active.startedAt }
+      : latest && now() - latest.finishedAt < SESSION_IDLE_MS
+        ? { state: latest.status === "complete" ? "idle" : latest.status, at: latest.finishedAt }
+        : { state: "idle" };
     return {
       mode,
+      activity,
       roomOpen: workerReady && now() - workerAt < 8000,
       phase:
         active?.type === "camera"
@@ -356,6 +364,7 @@ export function createGateway({
           if (!workerReady && job.type !== "camera")
             return json(res, 200, { job: null });
           job.status = "processing";
+          job.startedAt = now();
           job.lease = id();
           job.expires = now() + 120000;
           job.deadline = now() + (job.type === "camera" ? 120000 : 510000);
@@ -392,6 +401,8 @@ export function createGateway({
             else
               active.error =
                 "The camera could not move. Try again when Nodus is resting.";
+          } else if (data.ok === true && data.outcome === "quiet" && !data.speech) {
+            active.status = "quiet";
           } else if (
             data.ok === true &&
             typeof data.speech === "string" &&
@@ -407,10 +418,12 @@ export function createGateway({
             });
             active.status = "complete";
           } else {
-            active.status = "failed";
-            active.error =
-              "Nodus could not finish that reply. No automatic retry was made.";
+            active.status = data.outcome === "failed" ? "failed" : "unknown";
+            active.error = active.status === "failed"
+              ? "A processing error prevented this reply from completing. No automatic retry was made."
+              : "No confirmed reply arrived. We cannot tell whether Nodus intended to stay quiet.";
           }
+          active.finishedAt = now();
           active = null;
           return json(res, 200, { ok: true });
         }

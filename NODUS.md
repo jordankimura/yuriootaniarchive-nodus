@@ -173,6 +173,12 @@ The standalone gateway CLI binds loopback only. Public hosting should use a cont
 
 ## Validation
 
+### Reply outcomes (October 17, 2026)
+
+The room's reply indicator is separate from video availability and the fixed public-conversation disclosure. `working` requires an active turn and a fresh, ready worker heartbeat. `quiet` requires the voice channel's correlated reply to contain exactly `{"outcome":"quiet"}`; it skips speech generation. `failed` requires an explicit processing error. Missing replies, lost connections, expired leases, and outcomes from older bridges are `unknown`, never inferred intent. A successful spoken reply clears the indicator. Terminal indicators expire after 30 minutes and are visible to all room visitors.
+
+This protocol spans `server/nodus-worker.mjs`, `server/nodus-gateway.mjs`, and the local `Tools/Nodus Transcription` voice channel, policy, parser, and conversation server. Publishing the Vercel files alone cannot activate the local protocol. Restart the local gateway and the voice/Connectome services after installing those changes, with no active turn. The voice service keeps its ElevenLabs key in memory only; the operator must re-enter it after restart and reconnect the publisher's audio feed. Warudo itself does not need restarting. No response is retried automatically.
+
 Local checks on October 16, 2026: 10 integration tests passed; the production build, archive HTML/link checks and focused lint passed. One real website turn reached the existing Nodus agent, completed native ElevenLabs playback and returned the spoken text to the shared transcript. A browser-selected Warudo window reached a viewer at 2880×1728 with advancing playback. Remote speech capture was not tested; video was shared without an audio input. Desktop and narrow layouts were inspected. Multiple-tab camera isolation has an integration test; the public relay and isolated public agent are not installed.
 
 The repository-wide `npm run lint` still reports 174 errors in pre-existing archive components and vendored scripts. Those files are outside this change; the focused check below passes. The Windows launchers passed a syntax check. `Stop Nodus Website.cmd` stops only launcher-recorded Node processes whose process ID and start time still match; it leaves the personal services running.

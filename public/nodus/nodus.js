@@ -35,6 +35,19 @@ const notice = (text, error = false) => {
   $("notice").hidden = !text;
   $("notice").classList.toggle("error", error);
 };
+function showActivity(activity) {
+  const descriptions = {
+    working: ["Working", "The bridge confirms a turn is in progress."],
+    quiet: ["Deliberately quiet", "Nodus explicitly chose not to reply to the last turn."],
+    failed: ["Failed", "A processing error prevented the last reply from completing."],
+    unknown: ["Unknown", "No confirmed outcome. Silence alone does not tell us why."],
+  };
+  const description = descriptions[activity?.state];
+  $("turn-status").hidden = !description;
+  $("turn-status").dataset.state = activity?.state || "idle";
+  $("turn-state-label").textContent = description?.[0] || "";
+  $("turn-state-detail").textContent = description?.[1] || "";
+}
 async function api(path, method = "GET", data) {
   const res = await fetch("/api/nodus" + path, {
     method,
@@ -62,6 +75,8 @@ async function api(path, method = "GET", data) {
 }
 function render(s) {
   state = s;
+  // Older bridges cannot distinguish a timeout from a confirmed failure.
+  showActivity(s.activity || { state: s.current ? (s.roomOpen ? "working" : "unknown") : s.mine.at(-1)?.status === "failed" ? "unknown" : "idle" });
   $("video").classList.toggle("window-feed", s.videoSource !== "camera");
   $("presence").textContent = s.roomOpen ? "OPEN" : "CLOSED";
   $("presence").classList.toggle("open", s.roomOpen);
@@ -71,7 +86,7 @@ function render(s) {
   $("message").disabled = !s.roomOpen || busy;
   $("send").disabled = !s.roomOpen || busy || submitting;
   $("send").textContent = active
-    ? "Nodus is replying…"
+    ? "Turn in progress…"
     : mine
       ? "In the queue"
       : "Take a turn";
@@ -83,9 +98,9 @@ function render(s) {
       : mine
         ? `Your turn is ${s.queue.findIndex((j) => j.mine) + 1} in the queue.`
         : active
-          ? "Nodus is answering you."
+          ? "Your turn is in progress."
           : s.current
-            ? `Nodus is answering ${s.current.name}. ${s.queue.length ? `${s.queue.length} waiting.` : ""}`
+            ? `A turn for ${s.current.name} is in progress. ${s.queue.length ? `${s.queue.length} waiting.` : ""}`
             : s.roomOpen
               ? "The floor is open. Say hello."
               : "The room is quiet. Come back when Nodus is here.";
@@ -131,7 +146,9 @@ function render(s) {
     ownStatus = latest ? latest.id + ":" + latest.status : "";
   if (ownStatus !== lastOwnStatus) {
     lastOwnStatus = ownStatus;
-    if (latest?.status === "failed") notice(latest.error, true);
+    if (latest?.status === "failed") notice(s.activity ? latest.error : "No confirmed reply arrived. The outcome is unknown.", !!s.activity);
+    else if (latest?.status === "unknown") notice(latest.error || "Your turn ended without a confirmed outcome.");
+    else if (latest?.status === "quiet") notice("Nodus chose not to reply to your turn.");
     else if (latest?.status === "complete")
       notice(
         "Your turn is complete. Stay a while, or let someone else take the floor.",
@@ -170,6 +187,7 @@ async function join() {
     $("join").hidden = false;
     $("video-loading").hidden = true;
     $("presence").textContent = "RECONNECTING";
+    showActivity({ state: "unknown" });
     notice("Still connecting to the room. We’ll retry automatically.");
   } finally {
     joining = false;
@@ -457,6 +475,7 @@ async function pollRoom() {
       return;
     }
     roomReadFailed = true;
+    showActivity({ state: "unknown" });
     notice("The connection was interrupted. Reconnecting…");
     $("presence").textContent = "RECONNECTING";
     $("presence").classList.remove("open");

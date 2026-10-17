@@ -39,6 +39,21 @@ function viewer(blocked = false, fetchImpl) {
 
 const session = {csrf:'session', name:'Visitor', roomOpen:true, videoAvailable:true, queue:[], mine:[], transcript:[]};
 
+test('reply indicators distinguish deliberate quiet from uncertainty and clear on idle', () => {
+  const v=viewer();
+  for(const [state,label] of [['working','Working'],['quiet','Deliberately quiet'],['failed','Failed'],['unknown','Unknown']]) {
+    v.run(`showActivity({state:${JSON.stringify(state)}})`);
+    assert.equal(v.get('turn-state-label').textContent,label);
+    assert.equal(v.get('turn-status').hidden,false);
+  }
+  v.run('showActivity({state:"idle"})');
+  assert.equal(v.get('turn-status').hidden,true);
+  v.context.legacy={...session,videoAvailable:false,mine:[{id:'old',status:'failed',error:'Could not finish'}]};
+  v.run('render(legacy)');
+  assert.equal(v.get('turn-state-label').textContent,'Unknown');
+  assert.match(v.get('notice').textContent,/unknown/);
+});
+
 test('opening the page automatically loads chat and starts muted video', async () => {
   const calls = [];
   const v = viewer(false, async url => {

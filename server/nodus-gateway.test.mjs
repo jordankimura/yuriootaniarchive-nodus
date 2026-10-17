@@ -7,6 +7,49 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 const origin = "http://127.0.0.1:5175",
   token = "w".repeat(40);
+
+test('reply states require evidence and are shared with other visitors', async t => {
+  const { call, visitor, worker, tick } = await fixture(t);
+  const user = await visitor(), observer = await visitor();
+  for (const [completion, expected] of [
+    [{ok:true, outcome:'quiet'}, 'quiet'],
+    [{ok:true, speech:''}, 'unknown'],
+    [{ok:false}, 'unknown'],
+    [{ok:false, outcome:'unknown'}, 'unknown'],
+    [{ok:false, outcome:'failed'}, 'failed'],
+    [{ok:true, speech:'A reply'}, 'idle'],
+  ]) {
+    await worker('heartbeat', {ready:true});
+    await call('/turns', {method:'POST', user, body:{text:'Hello', public:true}});
+    const {job} = (await worker('claim')).data;
+    assert.equal((await call('/state',{user:observer})).data.activity.state,'working');
+    tick(8001);
+    assert.equal((await call('/state',{user:observer})).data.activity.state,'unknown');
+    await worker('heartbeat',{ready:true,id:job.id,lease:job.lease});
+    assert.equal((await call('/state',{user:observer})).data.activity.state,'working');
+    await worker('complete',{...job,...completion});
+    const state=(await call('/state',{user:observer})).data;
+    assert.equal(state.activity.state,expected);
+    assert.equal(state.transcript.filter(m=>m.role==='nodus').length,expected==='idle'?1:0);
+  }
+});
+
+test('voice adapter distinguishes explicit quiet, empty output, errors, and timeout', async t => {
+  const server=http.createServer(), wss=new WebSocketServer({server});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>{for(const ws of wss.clients)ws.terminate();wss.close();server.close();});
+  const app='http://127.0.0.1:'+server.address().port;
+  wss.on('connection',ws=>ws.on('message',raw=>{
+    const event=JSON.parse(raw);
+    if(event.type!=='turn')return;
+    const response={quiet:{type:'quiet'},empty:{type:'audio-end'},failed:{type:'error',outcome:'failed'},legacy:{type:'error'}}[event.text];
+    if(response)ws.send(JSON.stringify(response));
+  }));
+  assert.deepEqual(await speak(app,'quiet'),{speech:'',outcome:'quiet'});
+  for(const [text,outcome] of [['empty','unknown'],['failed','failed'],['legacy','unknown'],['timeout','unknown']]){
+    await assert.rejects(speak(app,text,{timeoutMs:100}),error=>error.outcome===outcome);
+  }
+});
 async function fixture(t, options = {}) {
   let clock = 1000000;
   const server = createGateway({
@@ -174,7 +217,7 @@ test("expired jobs are not retried, and conversation spending is capped", async 
   tick(120001);
   await worker("heartbeat", { ready: true });
   assert.equal((await worker("claim")).data.job, null);
-  assert.equal((await call("/state", { user })).data.mine[0].status, "failed");
+  assert.equal((await call("/state", { user })).data.mine[0].status, "unknown");
   assert.equal(
     (
       await call("/turns", {
@@ -201,7 +244,7 @@ test("long speech renews only its own queue lease and still has a hard deadline"
   }
   tick(60001);
   await worker("heartbeat", { ready: true, busy: true, id: job.id, lease: job.lease });
-  assert.equal((await call("/state", { user })).data.mine[0].status, "failed");
+  assert.equal((await call("/state", { user })).data.mine[0].status, "unknown");
   assert.equal((await worker("complete", { ...job, ok: true, speech: "Late" })).status, 409);
 });
 
@@ -214,7 +257,7 @@ test("an incorrect heartbeat lease cannot extend an abandoned voice job", async 
   tick(90000);
   await worker("heartbeat", { ready: true, busy: true, id: job.id, lease: "wrong" });
   tick(30001);
-  assert.equal((await call("/state", { user })).data.mine[0].status, "failed");
+  assert.equal((await call("/state", { user })).data.mine[0].status, "unknown");
 });
 test("waiting turns can be cancelled; worker offline closes the room", async (t) => {
   const { call, visitor, worker, tick } = await fixture(t);
@@ -529,9 +572,9 @@ test("voice adapter acknowledges playback and waits for audio completion", async
       }
     });
   });
-  assert.equal(
+  assert.deepEqual(
     await speak("http://127.0.0.1:" + server.address().port, "A test"),
-    "A fixture reply.",
+    {speech: "A fixture reply.", outcome: "complete"},
   );
   assert.equal(acknowledged, true);
   assert.equal(turns[0].visitor, undefined);

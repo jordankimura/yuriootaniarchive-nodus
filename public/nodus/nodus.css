@@ -241,6 +241,11 @@ h2 {
 .presence.open {
   color: #4c6946;
 }
+.turn-status { display: flex; flex-direction: column; gap: 4px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: #ece7dc; font-size: 11px; line-height: 1.5; flex-shrink: 0; }
+.turn-status strong { font-size: 11px; color: #4f6048; }
+.turn-status span { color: #756e60; }
+.turn-status[data-state="failed"] strong { color: #9a4d3d; }
+.turn-status[data-state="unknown"] strong { color: #756e60; }
 .chat-details {
   font-size: 11px;
   line-height: 1.65;
