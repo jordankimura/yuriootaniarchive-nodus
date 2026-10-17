@@ -11,13 +11,29 @@ function openVoiceFeed() {
   const context = new AudioContext();
   void context.resume();
   const destination = context.createMediaStreamDestination();
-  const socket = new WebSocket("ws://127.0.0.1:8788/voice-feed");
-  socket.binaryType = "arraybuffer";
+  // A silent source keeps the track producing audio between replies; some browsers
+  // (Firefox) otherwise send nothing at all while no speech is playing.
+  const idle = context.createConstantSource(),
+    mute = context.createGain();
+  mute.gain.value = 0;
+  idle.connect(mute).connect(destination);
+  idle.start();
+  const feed = {
+    track: destination.stream.getAudioTracks()[0],
+    state: "connecting",
+    seconds: 0,
+    closed: false,
+    socket: null,
+    close() {
+      feed.closed = true;
+      feed.socket?.close();
+      void context.close();
+    },
+  };
   let playhead = 0,
     carry = null;
-  socket.onmessage = (event) => {
-    if (typeof event.data === "string") return;
-    let bytes = new Uint8Array(event.data);
+  const play = (data) => {
+    let bytes = new Uint8Array(data);
     if (carry) {
       const joined = new Uint8Array(carry.length + bytes.length);
       joined.set(carry);
@@ -40,15 +56,27 @@ function openVoiceFeed() {
     const start = Math.max(playhead, context.currentTime + 0.12);
     source.start(start);
     playhead = start + buffer.duration;
+    feed.seconds += buffer.duration;
   };
-  return {
-    track: destination.stream.getAudioTracks()[0],
-    socket,
-    close() {
-      socket.close();
-      void context.close();
-    },
+  // Reconnect after the voice app restarts, without reopening the camera.
+  const connect = () => {
+    if (feed.closed) return;
+    const socket = new WebSocket("ws://127.0.0.1:8788/voice-feed");
+    socket.binaryType = "arraybuffer";
+    feed.socket = socket;
+    socket.onopen = () => (feed.state = "connected");
+    socket.onmessage = (event) => {
+      if (typeof event.data !== "string") play(event.data);
+    };
+    socket.onclose = () => {
+      if (feed.closed) return;
+      feed.state = "reconnecting";
+      setTimeout(connect, 3000);
+    };
   };
+  connect();
+  feed.context = context;
+  return feed;
 }
 const peers = new Map(),
   pending = new Map();
@@ -178,10 +206,6 @@ $("share").addEventListener("click", async () => {
     $("preview").style.clipPath =
       sourceKind === "window" ? "inset(6% 0 0 0)" : "none";
     if (voice) {
-      voice.socket.onerror = () => {
-        $("status").textContent =
-          "Nodus’s voice feed is unavailable. Restart the voice app, then reopen the camera.";
-      };
       stream.addTrack(voice.track);
     } else if ($("audio").value) {
       const audio = await navigator.mediaDevices.getUserMedia({
@@ -351,5 +375,7 @@ setInterval(async () => {
     }
   if (sourceKind === "window" && settings.cursor && settings.cursor !== "never")
     text += " · this browser did not hide the mouse; use the clean camera";
+  if (voice)
+    text += ` · Nodus’s voice: ${voice.state}, ${Math.round(voice.seconds)} s sent, audio ${voice.context.state}`;
   $("stats").textContent = text;
 }, 4000);
