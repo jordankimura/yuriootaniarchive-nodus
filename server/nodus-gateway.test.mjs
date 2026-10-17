@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createGateway } from "./nodus-gateway.mjs";
 import { assertPrivatePreview, speak } from "./nodus-worker.mjs";
 import http from "node:http";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 const origin = "http://127.0.0.1:5175",
   token = "w".repeat(40);
@@ -551,6 +552,7 @@ test("the public room splits a token-guarded visitor door from loopback-only con
     siteOrigin: site,
     localControls: true,
     cooldownMs: 0,
+    siteRoot: fileURLToPath(new URL("../dist/", import.meta.url)),
   });
   const controls = door.controls;
   await new Promise((r) => door.listen(0, "127.0.0.1", r));
@@ -607,6 +609,14 @@ test("the public room splits a token-guarded visitor door from loopback-only con
   );
   assert.equal((await worker("claim", {})).job.text, "hello");
   assert.equal((await fetch(controlsBase + "/operator")).status, 200);
+  // Jordan's own local view on the controls listener can join and take part.
+  const localJoin = await fetch(controlsBase + "/api/nodus/session", {
+    method: "POST",
+    headers: { Origin: controlsBase, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  assert.equal(localJoin.status, 200);
+  assert.doesNotMatch(localJoin.headers.get("set-cookie"), /Secure/);
   // Rate limits apply per forwarded visitor address, not to the shared proxy connection.
   let last;
   for (let i = 0; i < 41; i++)

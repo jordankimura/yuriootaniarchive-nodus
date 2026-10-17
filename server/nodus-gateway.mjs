@@ -464,7 +464,7 @@ export function createGateway({
       if (route === "/health" && req.method === "GET")
         return json(res, 200, { app: "nodus-website-gateway", mode });
       if (route === "/session" && req.method === "POST") {
-        if (!req.headers.origin || !allowed(req))
+        if (!req.headers.origin || !allowed(req, local))
           return json(res, 403, { error: "Enter through the website." });
         limit(req, door);
         let s = session(req);
@@ -510,7 +510,7 @@ export function createGateway({
       if (
         !["POST", "DELETE"].includes(req.method) ||
         !req.headers.origin ||
-        !allowed(req) ||
+        !allowed(req, local) ||
         !equal(req.headers["x-nodus-csrf"], s.csrf)
       )
         return json(res, 403, {
