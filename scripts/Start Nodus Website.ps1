@@ -9,7 +9,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $nodusProject 'node_modules/vite/bin
 $nodusGateway = Get-NetTCPConnection -LocalPort 8794 -State Listen -ErrorAction SilentlyContinue
 if ($nodusGateway) {
     $nodusExisting = Invoke-WebRequest -Uri 'http://127.0.0.1:8794/operator' -UseBasicParsing -TimeoutSec 3
-    if ($nodusExisting.Content -notmatch '<title>Nodus · Local publisher</title>') {
+    if ($nodusExisting.Content -notmatch '<title>Nodus.*Local publisher</title>') {
         throw 'Port 8794 is occupied by another service. Nothing was changed.'
     }
 } else {
