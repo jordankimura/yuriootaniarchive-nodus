@@ -14,7 +14,8 @@ export async function assertPrivatePreview({ gateway, app, config, enabled }) {
       "The personal Nodus adapter is only available in an explicitly enabled loopback preview. A public profile with isolated memory and restricted tools is required before deployment.",
     );
 }
-export function speak(app, text, { timeoutMs = 110000 } = {}) {
+export function speak(app, text, { timeoutMs = 490000, signal } = {}) {
+  if (signal?.aborted) return Promise.reject(Error("Voice reply cancelled."));
   return new Promise((resolve, reject) => {
     const url = new URL("/talk", app);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
@@ -28,6 +29,7 @@ export function speak(app, text, { timeoutMs = 110000 } = {}) {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
+      signal?.removeEventListener("abort", cancel);
       ws.close();
       if (error) reject(error);
       else resolve(speech);
@@ -36,6 +38,8 @@ export function speak(app, text, { timeoutMs = 110000 } = {}) {
       () => finish(Error("Voice reply timed out.")),
       timeoutMs,
     );
+    const cancel = () => finish(Error("Voice reply cancelled."));
+    signal?.addEventListener("abort", cancel, { once: true });
     ws.on("open", () =>
       ws.send(
         JSON.stringify({
@@ -102,6 +106,7 @@ export async function runWorker({
     config,
     enabled: allowPrivatePreview,
   });
+  let activeJob = null;
   let busy = false,
     stopped = false;
   const heartbeat = async () => {
@@ -120,6 +125,7 @@ export async function runWorker({
         ready,
         busy: busy || s.busy || s.brainBusy,
         camera: typeof setCamera === "function",
+        ...(activeJob ? { id: activeJob.id, lease: activeJob.lease } : {}),
       });
     } catch {
       await call("heartbeat", { ready: false, busy }).catch(() => {});
@@ -143,6 +149,7 @@ export async function runWorker({
         continue;
       }
       busy = true;
+      activeJob = job;
       try {
         if (job.type === "camera") {
           if (typeof setCamera !== "function")
@@ -153,7 +160,7 @@ export async function runWorker({
         }
         // This local pilot still uses Jordan's private voice channel. Never enable this adapter for public visitors.
         const text = `Private website prototype: a visitor labelled ${job.name} asks the following. Answer in your usual voice; keep this reply brief.\n\n${job.text}`;
-        const speech = await speak(app, text);
+        const speech = await speak(app, text, { signal });
         await call("complete", {
           id: job.id,
           lease: job.lease,
@@ -169,6 +176,7 @@ export async function runWorker({
         console.error("A website preview turn failed; it was not retried.");
       } finally {
         busy = false;
+        activeJob = null;
         await heartbeat();
       }
     }

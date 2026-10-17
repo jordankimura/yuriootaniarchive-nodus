@@ -185,6 +185,36 @@ test("expired jobs are not retried, and conversation spending is capped", async 
     429,
   );
 });
+
+test("long speech renews only its own queue lease and still has a hard deadline", async (t) => {
+  const { call, visitor, worker, tick } = await fixture(t);
+  const user = await visitor();
+  await worker("heartbeat", { ready: true });
+  await call("/turns", { method: "POST", user, body: { text: "A long answer", public: true } });
+  const { job } = (await worker("claim")).data;
+  for (let i = 0; i < 5; i++) {
+    tick(90000);
+    await worker("heartbeat", { ready: true, busy: true, id: job.id, lease: job.lease });
+    assert.equal((await call("/state", { user })).data.mine[0].status, "processing");
+    assert.equal((await worker("claim")).data.job, null);
+  }
+  tick(60001);
+  await worker("heartbeat", { ready: true, busy: true, id: job.id, lease: job.lease });
+  assert.equal((await call("/state", { user })).data.mine[0].status, "failed");
+  assert.equal((await worker("complete", { ...job, ok: true, speech: "Late" })).status, 409);
+});
+
+test("an incorrect heartbeat lease cannot extend an abandoned voice job", async t => {
+  const { call, visitor, worker, tick } = await fixture(t);
+  const user = await visitor();
+  await worker("heartbeat", { ready: true });
+  await call("/turns", { method: "POST", user, body: { text: "A turn", public: true } });
+  const { job } = (await worker("claim")).data;
+  tick(90000);
+  await worker("heartbeat", { ready: true, busy: true, id: job.id, lease: "wrong" });
+  tick(30001);
+  assert.equal((await call("/state", { user })).data.mine[0].status, "failed");
+});
 test("waiting turns can be cancelled; worker offline closes the room", async (t) => {
   const { call, visitor, worker, tick } = await fixture(t);
   const user = await visitor();
@@ -399,7 +429,13 @@ test("voice adapter acknowledges playback and waits for audio completion", async
         ws.send(JSON.stringify({ type: "reply", text: "A fixture reply." }));
       if (e.type === "playback-ready") {
         acknowledged = true;
-        ws.send(JSON.stringify({ type: "audio-end" }));
+        ws.send(JSON.stringify({ type: "speech-segment", index: 0, total: 2 }));
+        ws.send(JSON.stringify({ type: "performance-complete" }));
+        setTimeout(() => {
+          assert.equal(ws.readyState, 1);
+          ws.send(JSON.stringify({ type: "speech-segment", index: 1, total: 2 }));
+          ws.send(JSON.stringify({ type: "audio-end" }));
+        }, 20);
       }
     });
   });

@@ -39,7 +39,7 @@ The viewer now uses the close conversation framing by default, with no camera se
 
 The Windows website launcher now serves the built site through a small loopback HTTP server instead of keeping Vite's watcher running. `npm run dev` remains available for editing. A local **Nodus Studio** desktop shortcut and orchestration script live in the vault under `Tools/Nodus Studio`, outside this public repository. They start the voice service before the saved Connectome recipe, use its headless mode with a Windows named pipe, open Warudo at 1280×720 if absent, and start the website. Existing services are reused. Typed chat starts neither Deepgram nor the microphone lip-sync helper. Scripts, Windows daemon transport and reuse of live services were checked; a complete cold start after reboot has not yet been observed. ElevenLabs keys remain memory-only and must be reloaded after restart.
 
-Thirteen integration tests, the production build, archive checks, focused lint and startup-script parsing passed after these changes. Native camera and existing-service startup reuse were checked live. The original ten-test result below describes the first prototype.
+Fifteen website integration tests pass, including renewal of long replies, a hard deadline and rejection of unrelated lease renewals. The production build, archive checks, focused lint and startup-script parsing passed for the UI/startup changes. Native camera and existing-service startup reuse were checked live. The separate local voice controller passed 49 tests; a real 1,652-character, eight-part reply completed through native audio and lip sync in 98.72 seconds, with exact text preserved and phrase facial cues returning to neutral. That live test used the private voice controller directly; long website lease renewal has a mocked-clock integration test. The original ten-test result below describes the first prototype.
 
 ## Queue and identity
 
@@ -48,6 +48,7 @@ Thirteen integration tests, the production build, archive checks, focused lint a
 - One pending turn per visitor; at most 12 waiting turns; 600 characters per message.
 - 20-second per-visitor cooldown and 60 accepted turns per gateway run by default (cancellations still consume the cap).
 - One worker lease at a time. A timed-out or failed generation is never automatically retried.
+- Long spoken answers stay in one queue turn. The private voice controller accepts up to 4,000 spoken characters, divides speech into requests of at most 420 characters, and emits one completion only after every part finishes. A correlated worker heartbeat renews its own two-minute job lease, with an absolute 8.5-minute deadline. The adapter waits up to 490 seconds; provider failure or cancellation does not replay an already spoken part.
 - Worker authentication is separate from visitor sessions and publisher authentication.
 - Origin/CSRF checks, bounded requests, expiring sessions and a mutation rate limit.
 

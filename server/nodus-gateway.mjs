@@ -226,6 +226,8 @@ export function createGateway({
           workerReady = data.ready === true;
           workerBusy = data.busy === true;
           workerCamera = data.camera === true;
+          if (active && data.id === active.id && equal(data.lease, active.lease))
+            active.expires = Math.min(now() + 120000, active.deadline);
           return json(res, 200, { ok: true });
         }
         if (route === "/worker/claim") {
@@ -238,6 +240,7 @@ export function createGateway({
           job.status = "processing";
           job.lease = id();
           job.expires = now() + 120000;
+          job.deadline = now() + (job.type === "camera" ? 120000 : 510000);
           active = job;
           if (job.type !== "camera")
             transcript.push({
