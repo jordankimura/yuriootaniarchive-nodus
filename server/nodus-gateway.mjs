@@ -476,8 +476,8 @@ export function createGateway({
         return json(res, 200, { ok: true });
       }
       if (route === "/camera" && req.method === "POST") {
-        if (!["conversation", "wide"].includes(data.preset))
-          return json(res, 400, { error: "Choose the close or wide view." });
+        if (data.preset !== "conversation")
+          return json(res, 400, { error: "The website uses the close view." });
         if (!workerCamera || now() - workerAt >= 8000)
           return json(res, 503, { error: "The camera controls are offline." });
         if (active || workerBusy || jobs.some((j) => j.status === "queued"))

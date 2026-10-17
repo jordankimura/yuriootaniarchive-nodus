@@ -173,15 +173,10 @@ h1 em {
   padding: 8px 11px;
   font-size: 11px;
 }
-.camera-controls {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.camera-controls button[aria-pressed="true"] {
-  border-color: #d1e2b6;
-  background: #4d604b99;
+.message-hint {
+  font-size: 9px;
+  color: #948b7b;
+  margin: 6px 0 0;
 }
 .stage video.window-feed {
   top: -6%;

@@ -42,12 +42,13 @@ test("shared camera presets use a worker lease without speech generation or spen
   await worker("heartbeat", { ready: false, camera: true });
   assert.equal((await call("/state")).data.cameraAvailable, true);
   assert.equal((await call("/camera", { preset: "anything" })).status, 400);
-  const accepted = await call("/camera", { preset: "wide" });
+  assert.equal((await call("/camera", { preset: "wide" })).status, 400);
+  const accepted = await call("/camera", { preset: "conversation" });
   assert.equal(accepted.status, 202);
   assert.equal((await call("/camera", { preset: "conversation" })).status, 409);
   const job = (await worker("claim", {})).data.job;
   assert.equal(job.type, "camera");
-  assert.equal(job.preset, "wide");
+  assert.equal(job.preset, "conversation");
   assert.equal(job.text, undefined);
   assert.equal(
     (await worker("complete", { id: job.id, lease: "wrong", ok: true })).status,
@@ -65,7 +66,7 @@ test("shared camera presets use a worker lease without speech generation or spen
       .status,
     409,
   );
-  assert.equal(state.cameraPreset, "wide");
+  assert.equal(state.cameraPreset, "conversation");
   assert.equal(state.transcript.length, 0);
   assert.equal(state.remainingTurns, 60);
   assert.equal((await call("/camera", { preset: "conversation" })).status, 429);

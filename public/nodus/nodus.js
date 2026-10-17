@@ -44,13 +44,6 @@ async function api(path, method = "GET", data) {
 function render(s) {
   state = s;
   $("video").classList.toggle("window-feed", s.videoSource !== "camera");
-  for (const [id, preset] of [
-    ["camera-close", "conversation"],
-    ["camera-wide", "wide"],
-  ]) {
-    $(id).disabled = !s.cameraAvailable;
-    $(id).setAttribute("aria-pressed", String(s.cameraPreset === preset));
-  }
   $("presence").textContent = s.roomOpen ? "● OPEN" : "● CLOSED";
   $("presence").classList.toggle("open", s.roomOpen);
   const mine = s.queue.find((j) => j.mine),
@@ -136,20 +129,12 @@ async function join() {
   }
 }
 $("join").addEventListener("click", join);
-for (const [id, preset] of [
-  ["camera-close", "conversation"],
-  ["camera-wide", "wide"],
-])
-  $(id).addEventListener("click", async () => {
-    for (const button of ["camera-close", "camera-wide"])
-      $(button).disabled = true;
-    try {
-      render(await api("/camera", "POST", { preset }));
-      notice("Changing the camera for everyone in the room.");
-    } catch (e) {
-      notice(e.message, true);
-    }
-  });
+$("message").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  if (event.repeat || $("send").disabled || !$("message").value.trim()) return;
+  $("message-form").requestSubmit();
+});
 $("message-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (submitting || !state?.roomOpen) return;
@@ -296,8 +281,6 @@ setInterval(async () => {
       $("join").hidden = false;
       $("message-form").hidden = true;
       $("cancel").hidden = true;
-      $("camera-close").disabled = true;
-      $("camera-wide").disabled = true;
       $("presence").textContent = "● REJOIN";
       $("presence").classList.remove("open");
       $("queue").textContent = "The room restarted. Join again to reconnect.";
