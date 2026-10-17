@@ -9,7 +9,7 @@
       name="description"
       content="A shared room with Nodus. Watch, stay a while, and take a turn in the conversation."
     />
-    <link rel="stylesheet" href="/nodus/nodus.css?v=20261017-room2" />
+    <link rel="stylesheet" href="/nodus/nodus.css?v=20261017-stream-layout" />
     <script type="module" src="/nodus/nodus.js?v=20261017-room3"></script>
     <script type="module" src="/nodus/copy.js"></script>
   </head>
@@ -54,16 +54,8 @@
         </section>
         <aside class="conversation" aria-label="Shared conversation">
           <div class="conversation-head">
-            <div>
-              <p class="eyebrow" data-copy="text3">THE CONVERSATION</p>
-              <h2 data-copy="text4">Pull up a chair.</h2>
-            </div>
+            <h2 data-copy="text3">Live chat</h2>
             <span id="presence" class="presence">CONNECTING</span>
-          </div>
-          <div class="room-note">
-            One room, one conversation. Messages and Nodus’s replies are visible
-            to everyone here.
-            Times are shown in your local timezone. The visible chat clears after 30 idle minutes; conversations may be retained in private logs.
           </div>
           <div
             id="transcript"
@@ -90,7 +82,7 @@
               ><textarea
                 id="message"
                 maxlength="600"
-                rows="3"
+                rows="2"
                 placeholder="Something on your mind?"
                 aria-describedby="message-hint"
                 required
@@ -117,6 +109,10 @@
           </div>
         </aside>
       </div>
+      <details class="chat-details">
+        <summary>Chat details</summary>
+        <p>Times are shown in your local timezone. The visible chat clears after 30 idle minutes. Conversations may be retained in private logs.</p>
+      </details>
       <section class="about-nodus" aria-labelledby="about-title">
         <div>
           <p class="eyebrow" data-copy="text6">WHO YOU’RE TALKING TO</p>

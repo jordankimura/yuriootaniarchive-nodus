@@ -99,20 +99,24 @@ h1 em {
 }
 .room-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 350px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  height: clamp(520px, 66vh, 680px);
+  gap: 0;
   align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px #403c3312;
 }
 .stage {
   position: relative;
   width: 100%;
   justify-self: stretch;
   min-width: 0;
-  min-height: 540px;
+  min-height: 0;
   background: #242b32;
   overflow: hidden;
-  border-radius: 3px;
-  box-shadow: 0 10px 28px #403c3312;
+  border-radius: 0;
 }
 .stage img,
 .stage video {
@@ -201,23 +205,24 @@ h1 em {
 .conversation {
   min-width: 0;
   background: #f9f6eea8;
-  border: 1px solid #fdfbf380;
-  border-radius: 3px;
+  border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  min-height: 540px;
-  max-height: 650px;
+  min-height: 0;
+  overflow: hidden;
 }
 .conversation-head {
-  padding: 24px 22px 17px;
+  padding: 17px 18px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
 }
-.conversation-head .eyebrow {
-  font-size: 8px;
-  margin-bottom: 9px;
+.conversation-head h2 {
+  font: 600 14px "DM Sans", sans-serif;
+  letter-spacing: 0;
 }
 h2 {
   font-family: "Libre Caslon Display", Georgia, serif;
@@ -236,19 +241,20 @@ h2 {
 .presence.open {
   color: #4c6946;
 }
-.room-note {
-  font-size: 10px;
+.chat-details {
+  font-size: 11px;
   line-height: 1.65;
   color: #827c6f;
-  margin: 0 22px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
+  margin: 12px 0 0;
 }
+.chat-details summary { cursor: pointer; width: fit-content; }
+.chat-details p { margin: 8px 0 0; }
 .transcript {
   flex: 1;
   overflow-y: auto;
-  min-height: 140px;
-  padding: 20px 22px;
+  min-height: 0;
+  padding: 18px;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
 }
 .empty {
@@ -277,11 +283,11 @@ h2 {
   max-width: 190px;
 }
 .message {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 .message-name {
-  font-size: 8px;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #9b8b73;
   margin: 0 0 7px;
@@ -293,23 +299,23 @@ h2 {
 .message p {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.6;
   margin: 0;
 }
 .message.nodus p {
-  font-family: Georgia, serif;
-  font-size: 14px;
+  font-family: inherit;
 }
 .composer {
   border-top: 1px solid var(--line);
-  padding: 15px 22px 17px;
+  padding: 12px 18px 14px;
+  flex-shrink: 0;
 }
 .queue {
   font-size: 10px;
   line-height: 1.5;
   color: #827c6f;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 .primary {
   display: flex;
@@ -329,8 +335,8 @@ h2 {
 }
 textarea {
   resize: vertical;
-  min-height: 70px;
-  max-height: 150px;
+  min-height: 54px;
+  max-height: 100px;
   width: 100%;
   border: 1px solid #ccc4b5;
   border-radius: 2px;
@@ -414,18 +420,10 @@ footer {
   .room-grid {
     grid-template-columns: minmax(0, 1fr) 380px;
   }
-  .stage,
-  .conversation {
-    min-height: 630px;
-  }
 }
 @media (max-width: 1050px) {
   .room-grid {
     grid-template-columns: minmax(0, 1fr) 320px;
-  }
-  .stage,
-  .conversation {
-    min-height: 520px;
   }
   .introduction {
     margin-bottom: 26px;
@@ -471,13 +469,14 @@ footer {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 14px;
+    gap: 0;
+    height: auto;
   }
   .stage {
     width: 100%;
     flex: none;
     height: auto;
-    min-height: 240px;
+    min-height: 0;
     aspect-ratio: 4/3;
   }
   .stage img,
@@ -499,18 +498,23 @@ footer {
   .conversation {
     width: 100%;
     flex: none;
-    min-height: 440px;
-    height: auto;
-    max-height: none;
+    min-height: 460px;
+    height: 66svh;
+    max-height: 620px;
+    border-left: 0;
+    border-top: 1px solid var(--line);
   }
   .conversation-head {
-    padding-top: 21px;
+    padding: 15px 16px;
   }
   .transcript {
-    flex: none;
-    height: 240px;
-    min-height: 130px;
+    flex: 1;
+    height: auto;
+    min-height: 0;
+    padding: 16px;
   }
+  .composer { padding: 12px 16px 14px; }
+  textarea { font-size: 16px; }
   .about-nodus {
     grid-template-columns: 1fr;
     gap: 18px;
