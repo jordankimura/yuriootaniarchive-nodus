@@ -1,0 +1,470 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap");
+:root {
+  font-family: "DM Sans", sans-serif;
+  color: #302e28;
+  background: #e8e2d6;
+  font-synthesis: none;
+  font-weight: 400;
+  --line: #bdb6a849;
+  --ink: #343b31;
+  --green: #526549;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 10% 0%, #f8f4eb9c, transparent 70%);
+}
+button,
+textarea {
+  font: inherit;
+}
+button,
+a,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+a {
+  color: inherit;
+}
+button:focus-visible,
+a:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #7b8b59;
+  outline-offset: 4px;
+}
+[hidden] {
+  display: none !important;
+}
+.masthead {
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4.2vw;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+}
+.back {
+  text-decoration: none;
+}
+.edition {
+  color: #878071;
+}
+main {
+  max-width: 1640px;
+  margin: 0 auto;
+  padding: 48px 4.2vw 0;
+}
+.introduction {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 32px;
+}
+.eyebrow {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  margin: 0 0 13px;
+  color: #817a6d;
+}
+h1 {
+  font-family: "Libre Caslon Display", Georgia, serif;
+  font-size: clamp(45px, 5.2vw, 78px);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  margin: 0;
+}
+h1 em {
+  color: #59654a;
+  font-weight: 400;
+}
+.intro-note {
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #80796b;
+  margin: 0 0 2px;
+}
+.room-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 18px;
+  align-items: stretch;
+}
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 540px;
+  background: #242b32;
+  overflow: hidden;
+  border-radius: 3px;
+  box-shadow: 0 10px 28px #403c3312;
+}
+.stage img,
+.stage video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 43%;
+}
+.stage:after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    0deg,
+    #09101896,
+    transparent 30%,
+    transparent 75%,
+    #101b3045
+  );
+}
+.stage-top,
+.stage-bottom {
+  position: absolute;
+  z-index: 1;
+  left: 25px;
+  right: 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #f2efe5;
+}
+.stage-top {
+  top: 24px;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+}
+.badge {
+  padding: 8px 10px;
+  background: #17222c85;
+  border: 1px solid #ffffff30;
+  border-radius: 3px;
+  font-size: 8px;
+}
+.badge.live {
+  background: #445a35bb;
+}
+.stage-bottom {
+  bottom: 24px;
+  font-size: 12px;
+  gap: 10px;
+}
+.glass-button {
+  background: #0f182c66;
+  border: 1px solid #ffffff5c;
+  border-radius: 3px;
+  color: #fff;
+  padding: 8px 11px;
+  font-size: 11px;
+}
+.conversation {
+  background: #f9f6eea8;
+  border: 1px solid #fdfbf380;
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  min-height: 540px;
+  max-height: 650px;
+}
+.conversation-head {
+  padding: 24px 22px 17px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.conversation-head .eyebrow {
+  font-size: 8px;
+  margin-bottom: 9px;
+}
+h2 {
+  font-family: "Libre Caslon Display", Georgia, serif;
+  font-size: 31px;
+  font-weight: 400;
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+.presence {
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: #8c8475;
+  margin-top: 3px;
+}
+.presence.open {
+  color: #4c6946;
+}
+.room-note {
+  font-size: 10px;
+  line-height: 1.65;
+  color: #827c6f;
+  margin: 0 22px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 140px;
+  padding: 20px 22px;
+  scrollbar-width: thin;
+}
+.empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #8e8779;
+}
+.empty-mark {
+  font-family: Georgia, serif;
+  font-size: 32px;
+  color: #ada18a;
+}
+.empty p {
+  font-family: Georgia, serif;
+  font-size: 16px;
+  line-height: 1.4;
+  margin: 14px 0 8px;
+  max-width: 180px;
+}
+.empty small {
+  font-size: 10px;
+  line-height: 1.6;
+  max-width: 190px;
+}
+.message {
+  margin-bottom: 20px;
+}
+.message-name {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9b8b73;
+  margin: 0 0 7px;
+  font-weight: 600;
+}
+.message.nodus .message-name {
+  color: #4f6947;
+}
+.message p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 0;
+}
+.message.nodus p {
+  font-family: Georgia, serif;
+  font-size: 14px;
+}
+.composer {
+  border-top: 1px solid var(--line);
+  padding: 15px 22px 17px;
+}
+.queue {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #827c6f;
+  margin-bottom: 12px;
+}
+.primary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  width: 100%;
+  border: 0;
+  border-radius: 2px;
+  background: var(--ink);
+  color: #f6f2e8;
+  padding: 13px 14px;
+  font-size: 11px;
+}
+.primary:hover {
+  background: #495540;
+}
+textarea {
+  resize: vertical;
+  min-height: 70px;
+  max-height: 150px;
+  width: 100%;
+  border: 1px solid #ccc4b5;
+  border-radius: 2px;
+  background: #fffcf6a6;
+  padding: 10px;
+  color: #38372e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+textarea::placeholder {
+  color: #a19a8b;
+}
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+}
+.composer-actions .primary {
+  width: auto;
+  padding: 10px 12px;
+}
+.composer-actions > span {
+  font-size: 9px;
+  color: #8c8475;
+}
+.notice {
+  font-size: 9px;
+  color: #948b7b;
+  line-height: 1.6;
+  margin: 12px 0 0;
+}
+.notice.error {
+  color: #9a4d3d;
+}
+.text-button {
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  color: #766c5c;
+  font-size: 10px;
+  padding: 8px 0;
+}
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  color: #918878;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 22px 0 30px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (min-width: 1550px) {
+  .room-grid {
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+  .stage,
+  .conversation {
+    min-height: 630px;
+  }
+}
+@media (max-width: 1050px) {
+  .room-grid {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+  .stage,
+  .conversation {
+    min-height: 520px;
+  }
+  .introduction {
+    margin-bottom: 26px;
+  }
+  .intro-note {
+    font-size: 13px;
+  }
+  .stage img,
+  .stage video {
+    object-position: 51% 43%;
+  }
+}
+@media (max-width: 760px) {
+  .masthead {
+    height: 60px;
+    padding: 0 6vw;
+  }
+  .edition {
+    font-size: 7px;
+    letter-spacing: 0.07em;
+  }
+  main {
+    padding: 30px 5vw 0;
+  }
+  .introduction {
+    display: block;
+    margin-bottom: 22px;
+  }
+  .eyebrow {
+    font-size: 8px;
+  }
+  h1 {
+    font-size: 49px;
+  }
+  .intro-note {
+    font-size: 12px;
+    margin: 13px 0 0;
+  }
+  .intro-note br {
+    display: none;
+  }
+  .room-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .stage {
+    min-height: 0;
+    aspect-ratio: 4/3;
+  }
+  .stage img,
+  .stage video {
+    object-position: 50% 42%;
+  }
+  .stage-top,
+  .stage-bottom {
+    left: 18px;
+    right: 18px;
+  }
+  .stage-top {
+    top: 18px;
+  }
+  .stage-bottom {
+    bottom: 18px;
+    font-size: 11px;
+  }
+  .conversation {
+    min-height: 440px;
+    height: 490px;
+  }
+  .conversation-head {
+    padding-top: 21px;
+  }
+  .transcript {
+    min-height: 130px;
+  }
+  footer {
+    font-size: 7px;
+    line-height: 1.6;
+    padding-bottom: 22px;
+  }
+  footer span:last-child {
+    text-align: right;
+  }
+}

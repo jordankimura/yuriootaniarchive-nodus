@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#e8e2d6" />
+    <title>A room with Nodus · Yuri Ootani</title>
+    <meta
+      name="description"
+      content="A shared room with Nodus. Watch, stay a while, and take a turn in the conversation."
+    />
+    <link rel="stylesheet" href="/nodus/nodus.css" />
+    <script type="module" src="/nodus/nodus.js"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <a href="/" class="back">← THE ARCHIVE</a
+      ><span class="edition">AN ONGOING EXPERIMENT / 013</span>
+    </header>
+    <main>
+      <div class="introduction">
+        <div>
+          <p class="eyebrow">YOU’RE WELCOME TO STAY</p>
+          <h1>A room with <em>Nodus.</em></h1>
+        </div>
+        <p class="intro-note">
+          A persistent AI, a borrowed body,<br />and an open conversation.
+        </p>
+      </div>
+      <div class="room-grid">
+        <section class="stage" aria-label="Nodus’s room">
+          <img
+            id="poster"
+            src="/nodus/room.jpg"
+            alt="Nodus seated in his softly lit room, with a warm lamp and blue light across the wall."
+          />
+          <video id="video" autoplay playsinline muted hidden></video>
+          <div class="stage-top">
+            <span class="room-label">NODUS / ROOM 08</span
+            ><span id="video-badge" class="badge">SAVED PREVIEW</span>
+          </div>
+          <div class="stage-bottom">
+            <span id="stage-caption">The room is quiet for now.</span
+            ><button id="sound" class="glass-button" hidden>
+              Enable sound
+            </button>
+          </div>
+        </section>
+        <aside class="conversation" aria-label="Shared conversation">
+          <div class="conversation-head">
+            <div>
+              <p class="eyebrow">THE CONVERSATION</p>
+              <h2>Pull up a chair.</h2>
+            </div>
+            <span id="presence" class="presence">● CLOSED</span>
+          </div>
+          <div class="room-note">
+            One room, one conversation. Messages and Nodus’s replies are visible
+            to everyone here.
+          </div>
+          <div
+            id="transcript"
+            class="transcript"
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+          >
+            <div class="empty">
+              <span class="empty-mark">↗</span>
+              <p>A little space to think out loud.</p>
+              <small>When the room opens, join in and take a turn.</small>
+            </div>
+          </div>
+          <div class="composer">
+            <div id="queue" class="queue">
+              Visitors take turns; Nodus answers one at a time.
+            </div>
+            <button id="join" class="primary">
+              Join the room <span>↗</span>
+            </button>
+            <form id="message-form" hidden>
+              <label for="message" class="sr-only">Your public message</label
+              ><textarea
+                id="message"
+                maxlength="600"
+                rows="3"
+                placeholder="Something on your mind?"
+                required
+              ></textarea>
+              <div class="composer-actions">
+                <span id="identity"></span
+                ><button id="send" class="primary" type="submit">
+                  Take a turn ↗
+                </button>
+              </div>
+            </form>
+            <button id="cancel" class="text-button" hidden>
+              Leave the queue
+            </button>
+            <p id="notice" class="notice" role="status">
+              A shared, public conversation. Please keep personal details
+              private.
+            </p>
+          </div>
+        </aside>
+      </div>
+      <footer>
+        <span>COME FOR THE CONVERSATION. LEAVE WHENEVER.</span
+        ><span>AI CHARACTER · EXPERIMENT IN PROGRESS</span>
+      </footer>
+    </main>
+  </body>
+</html>

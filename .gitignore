@@ -31,3 +31,5 @@ dist/
 .env.*
 !.env.example
 .env*
+# Local runtime state and screenshots
+.local/

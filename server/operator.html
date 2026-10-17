@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Nodus · Local publisher</title>
+    <style>
+      body {
+        font: 15px system-ui;
+        background: #eee9df;
+        color: #30362e;
+        max-width: 840px;
+        margin: 50px auto;
+        padding: 0 24px;
+      }
+      h1 {
+        font: 38px Georgia;
+      }
+      p {
+        line-height: 1.6;
+      }
+      button,
+      select {
+        font: inherit;
+        padding: 12px 16px;
+        margin: 8px 8px 8px 0;
+      }
+      button {
+        cursor: pointer;
+      }
+      video {
+        display: block;
+        width: 100%;
+        max-height: 460px;
+        background: #242a32;
+        margin-top: 24px;
+      }
+      label {
+        display: block;
+        margin: 20px 0 4px;
+      }
+      small {
+        display: block;
+        color: #706e65;
+      }
+      #status {
+        min-height: 32px;
+      }
+      a {
+        color: inherit;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+    <script type="module" src="/operator.js"></script>
+  </head>
+  <body>
+    <p>LOCAL PREVIEW · OPERATOR WINDOW</p>
+    <h1>Open the camera.</h1>
+    <p>
+      Choose the <strong>Warudo output window</strong> in the sharing picker.
+      Only that window is sent to visitors in the preview. Check the image below
+      before anyone joins.
+    </p>
+    <p>
+      This first test shares video. To include Nodus’s voice, select a dedicated
+      virtual cable carrying <em>only</em> his output. Leave audio off if you
+      haven’t set up that route.
+    </p>
+    <label for="audio">Nodus audio source</label
+    ><select id="audio">
+      <option value="">Video only</option></select
+    ><button id="devices">Choose audio device…</button
+    ><small
+      >Listing input names may ask for microphone permission. Nothing is
+      recorded until you select a source and start sharing.</small
+    ><button id="share">Share Warudo window</button
+    ><button id="stop" disabled>Close camera</button>
+    <p id="status" role="status">Camera closed.</p>
+    <video id="preview" autoplay playsinline muted></video>
+    <p>
+      <a href="http://127.0.0.1:5175/nodus/" target="_blank" rel="noreferrer"
+        >Open the website preview ↗</a
+      >
+    </p>
+  </body>
+</html>

@@ -99,4 +99,14 @@ export const projects = [
     type: "live2d",
     link: "/astra/"
   }
+  ,{
+    id: 13,
+    name: "A room with Nodus",
+    thumbnail: "/nodus/room.jpg",
+    images: [{src: "/nodus/room.jpg", alt: "Nodus seated in his room, lit by a warm lamp and blue light"}],
+    description: "A persistent AI, a borrowed body, and an open conversation.",
+    longDescription: "a room for nodus. the idea is that you can drop in, watch, and take a turn talking with him. one shared stage, so everyone sees the same conversation.\n\nthis is a prototype. the room stays closed when he's offline. the body and room are rendered in warudo, with his persistent agent behind the conversation.",
+    type: "experiment",
+    link: "/nodus/"
+  }
 ]

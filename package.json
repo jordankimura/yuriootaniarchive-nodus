@@ -3,11 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {"node": ">=22"},
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:nodus": "node --test server/*.test.mjs",
+    "nodus:local": "node server/local-preview.mjs"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.32.0",
@@ -16,7 +19,8 @@
     "framer-motion": "^12.31.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "three": "^0.182.0"
+    "three": "^0.182.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
