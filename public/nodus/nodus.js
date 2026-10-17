@@ -204,9 +204,11 @@ async function connectVideo() {
   cursor = 0;
   candidates = [];
   try {
-    const peer = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    // Relay (TURN) servers let viewers on strict networks, such as mobile carriers, connect.
+    const iceServers = await api("/ice")
+      .then((r) => r.iceServers)
+      .catch(() => [{ urls: "stun:stun.l.google.com:19302" }]);
+    const peer = new RTCPeerConnection({ iceServers });
     pc = peer;
     peer.addTransceiver("video", { direction: "recvonly" });
     peer.addTransceiver("audio", { direction: "recvonly" });

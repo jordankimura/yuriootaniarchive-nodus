@@ -636,3 +636,69 @@ test("the public room splits a token-guarded visitor door from loopback-only con
     createGateway({ secret: "s".repeat(40), workerToken: token, localControls: true }),
   );
 });
+
+test("relay credentials come from the TURN key on this PC, are cached, filtered and fall back to STUN", async (t) => {
+  let clock = 1000000,
+    calls = 0,
+    fail = false;
+  const fetchImpl = async (url, init) => {
+    calls++;
+    assert.match(url, /\/v1\/turn\/keys\/key-id-123\/credentials\/generate-ice-servers$/);
+    assert.equal(init.headers.Authorization, "Bearer turn-token-abcdefghij");
+    if (fail) return { ok: false };
+    return {
+      ok: true,
+      json: async () => ({
+        iceServers: [
+          { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.cloudflare.com:53"] },
+          {
+            urls: ["turn:turn.cloudflare.com:3478?transport=udp", "turn:turn.cloudflare.com:53?transport=udp"],
+            username: "u",
+            credential: "c",
+          },
+        ],
+      }),
+    };
+  };
+  const server = createGateway({
+    secret: "s".repeat(40),
+    workerToken: token,
+    now: () => clock,
+    turn: { keyId: "key-id-123", apiToken: "turn-token-abcdefghij" },
+    fetchImpl,
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  t.after(() => new Promise((r) => server.close(r)));
+  const base = "http://127.0.0.1:" + server.address().port;
+  assert.equal((await fetch(base + "/ice")).status, 401);
+  const join = await fetch(base + "/session", {
+    method: "POST",
+    headers: { Origin: origin, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  let cookie = join.headers.get("set-cookie").split(";")[0];
+  const ice = async () => (await (await fetch(base + "/ice", { headers: { Cookie: cookie } })).json()).iceServers;
+  const first = await ice();
+  assert.deepEqual(first[1], {
+    urls: ["turn:turn.cloudflare.com:3478?transport=udp"],
+    username: "u",
+    credential: "c",
+  });
+  assert.deepEqual(first[0].urls, ["stun:stun.cloudflare.com:3478"]);
+  await ice();
+  assert.equal(calls, 1);
+  clock += 2 * 3600000 + 1;
+  fail = true;
+  // The idle visitor session expired during the jump; join again.
+  cookie = (
+    await fetch(base + "/session", {
+      method: "POST",
+      headers: { Origin: origin, "Content-Type": "application/json" },
+      body: "{}",
+    })
+  ).headers.get("set-cookie").split(";")[0];
+  assert.deepEqual(await ice(), [{ urls: "stun:stun.l.google.com:19302" }]);
+  assert.throws(() =>
+    createGateway({ secret: "s".repeat(40), workerToken: token, turn: { keyId: "x", apiToken: "y" } }),
+  );
+});

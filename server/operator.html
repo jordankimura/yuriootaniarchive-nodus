@@ -65,9 +65,8 @@
       render.
     </p>
     <p>
-      This first test shares video. To include Nodus’s voice, select a dedicated
-      virtual cable carrying <em>only</em> his output. Leave audio off if you
-      haven’t set up that route.
+      Nodus’s voice comes straight from the local voice app, so viewers hear
+      only him, never your microphone or other sounds on this PC.
     </p>
     <label for="source">Picture source</label
     ><select id="source">
@@ -83,6 +82,9 @@
     >
     <label for="audio">Nodus audio source</label
     ><select id="audio">
+      <option value="nodus-voice" selected>
+        Nodus’s voice (direct from the voice app)
+      </option>
       <option value="">Video only</option></select
     ><button id="devices">Choose audio device…</button
     ><small
@@ -94,7 +96,7 @@
     <small id="stats" aria-live="polite"></small>
     <video id="preview" autoplay playsinline muted></video>
     <p>
-      <a href="http://127.0.0.1:5175/nodus/" target="_blank" rel="noreferrer"
+      <a href="/nodus/" target="_blank" rel="noreferrer"
         >Open the website preview ↗</a
       >
     </p>

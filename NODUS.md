@@ -95,7 +95,24 @@ Secrets are generated on first use in `%USERPROFILE%\.nodus\public-room.json`, o
 
 When the PC or Funnel is off, the live site shows the room as closed.
 
-Limits: video goes directly from Jordan's PC to each viewer (about 1.6 Mbps of upload per viewer), with STUN but no TURN, so some strict networks will not connect. There is no sound yet: Nodus's voice needs a virtual audio cable and the voice app's output set to it. The 60-turn cap, 20-second cooldown, 12-turn queue and 600-character messages still apply. Every turn is copied to Jordan's private Discord channel once the voice app has restarted.
+### Video relay (TURN)
+
+Mobile carriers and some offices block direct peer-to-peer video. The room can hand viewers and the publisher short-lived Cloudflare TURN relay credentials through `GET /ice` (visitor, session required) and `GET /operator/ice` (publisher). The TURN key stays on this PC: the room requests credentials valid for four hours, refreshes them after two, drops port-53 URLs, and falls back to STUN only if Cloudflare is unreachable or no key is set.
+
+To enable it, create a TURN key in the Cloudflare dashboard (Realtime → TURN Server), then add its two values to `%USERPROFILE%\.nodus\public-room.json`:
+
+```json
+"turnKeyId": "…",
+"turnApiToken": "…"
+```
+
+Close and reopen the public room. Its log reports `Video relay: Cloudflare TURN`. Relayed viewers count toward Cloudflare's TURN usage, roughly 0.7 GB per hour per relayed viewer at the 1.6 Mbps cap.
+
+### Nodus's voice
+
+The publisher's default audio source is **Nodus's voice (direct from the voice app)**. The voice app serves a read-only `ws://127.0.0.1:8788/voice-feed` carrying exactly the 24 kHz PCM it sends to the native player, accepted only from the publisher's origin (`http://127.0.0.1:8794` or `localhost:8794`) on loopback. The publisher schedules each chunk in real time and adds the result to the outgoing stream, so viewers hear only Nodus, never the room or the microphone. Viewers tap **Enable sound** once, because browsers start video muted. The voice app needs a restart once to gain the feed.
+
+Limits: video goes directly from Jordan's PC to each viewer unless relayed (about 1.6 Mbps of upload per viewer). The 60-turn cap, 20-second cooldown, 12-turn queue and 600-character messages still apply. Every turn is copied to Jordan's private Discord channel once the voice app has restarted. A VPN on this PC blocks direct viewers; after a network change, rerun Open Nodus Room to Public to refresh Funnel.
 
 ## Further hardening
 

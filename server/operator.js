@@ -3,7 +3,53 @@ let csrf = "",
   stream = null,
   cursor = 0,
   polling = false;
-let sourceKind = "window";
+let sourceKind = "window",
+  voice = null;
+// Nodus's generated speech arrives as 24 kHz 16-bit mono PCM from the local voice
+// app. Each chunk is scheduled right after the last, so it plays in real time.
+function openVoiceFeed() {
+  const context = new AudioContext();
+  void context.resume();
+  const destination = context.createMediaStreamDestination();
+  const socket = new WebSocket("ws://127.0.0.1:8788/voice-feed");
+  socket.binaryType = "arraybuffer";
+  let playhead = 0,
+    carry = null;
+  socket.onmessage = (event) => {
+    if (typeof event.data === "string") return;
+    let bytes = new Uint8Array(event.data);
+    if (carry) {
+      const joined = new Uint8Array(carry.length + bytes.length);
+      joined.set(carry);
+      joined.set(bytes, carry.length);
+      bytes = joined;
+      carry = null;
+    }
+    if (bytes.length % 2) {
+      carry = bytes.slice(-1);
+      bytes = bytes.slice(0, -1);
+    }
+    if (!bytes.length) return;
+    const samples = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length / 2);
+    const buffer = context.createBuffer(1, samples.length, 24000);
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) channel[i] = samples[i] / 32768;
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(destination);
+    const start = Math.max(playhead, context.currentTime + 0.12);
+    source.start(start);
+    playhead = start + buffer.duration;
+  };
+  return {
+    track: destination.stream.getAudioTracks()[0],
+    socket,
+    close() {
+      socket.close();
+      void context.close();
+    },
+  };
+}
 const peers = new Map(),
   pending = new Map();
 async function api(path, data) {
@@ -22,6 +68,8 @@ async function api(path, data) {
 async function closeCamera() {
   const previous = stream;
   stream = null;
+  voice?.close();
+  voice = null;
   previous?.getTracks().forEach((t) => t.stop());
   for (const peer of peers.values()) peer.close();
   peers.clear();
@@ -43,7 +91,10 @@ $("devices").addEventListener("click", async () => {
     const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
     probe.getTracks().forEach((t) => t.stop());
     const devices = await navigator.mediaDevices.enumerateDevices();
-    $("audio").replaceChildren(new Option("Video only", ""));
+    $("audio").replaceChildren(
+      new Option("Nodus’s voice (direct from the voice app)", "nodus-voice"),
+      new Option("Video only", ""),
+    );
     for (const d of devices.filter((d) => d.kind === "audioinput"))
       $("audio").add(new Option(d.label || "Audio input", d.deviceId));
     $("status").textContent =
@@ -55,6 +106,8 @@ $("devices").addEventListener("click", async () => {
 });
 $("share").addEventListener("click", async () => {
   $("share").disabled = true;
+  // Start audio inside the click itself; Chrome may keep a later AudioContext silent.
+  if ($("audio").value === "nodus-voice") voice = openVoiceFeed();
   try {
     const session = await api("session", {});
     csrf = session.csrf;
@@ -124,7 +177,13 @@ $("share").addEventListener("click", async () => {
     stream.getVideoTracks()[0].contentHint = "motion";
     $("preview").style.clipPath =
       sourceKind === "window" ? "inset(6% 0 0 0)" : "none";
-    if ($("audio").value) {
+    if (voice) {
+      voice.socket.onerror = () => {
+        $("status").textContent =
+          "Nodus’s voice feed is unavailable. Restart the voice app, then reopen the camera.";
+      };
+      stream.addTrack(voice.track);
+    } else if ($("audio").value) {
       const audio = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: { exact: $("audio").value },
@@ -147,8 +206,10 @@ $("share").addEventListener("click", async () => {
     $("status").textContent =
       "Camera open. Check that this is the Warudo output. " +
       (stream.getAudioTracks().length
-        ? "Selected audio input is also shared."
-        : "Video only; Nodus’s remote audio is not routed yet.");
+        ? $("audio").value === "nodus-voice"
+          ? "Nodus’s voice is included."
+          : "Selected audio input is also shared."
+        : "Video only.");
     await api("heartbeat", { source: sourceKind });
   } catch (e) {
     await closeCamera();
@@ -175,9 +236,10 @@ async function handle(m) {
   }
   if (m.type === "offer") {
     peers.get(m.visitor)?.close();
-    const peer = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    const iceServers = await api("ice")
+      .then((r) => r.iceServers)
+      .catch(() => [{ urls: "stun:stun.l.google.com:19302" }]);
+    const peer = new RTCPeerConnection({ iceServers });
     peers.set(m.visitor, peer);
     peer.onconnectionstatechange = () => {
       if (

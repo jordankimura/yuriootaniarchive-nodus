@@ -53,6 +53,11 @@ const server = createGateway(
         maxTurns: secrets.maxTurns,
         siteRoot,
         localControls: true,
+        // Optional Cloudflare TURN relay, added by Jordan to the secrets file.
+        turn:
+          secrets.turnKeyId && secrets.turnApiToken
+            ? { keyId: secrets.turnKeyId, apiToken: secrets.turnApiToken }
+            : null,
       }
     : {
         secret: random(),
@@ -86,5 +91,8 @@ controls.listen(8794, "127.0.0.1", () => {
 });
 if (publicRoom)
   server.listen(8795, "127.0.0.1", () =>
-    console.log("Visitor door listening on 127.0.0.1:8795 for Tailscale Funnel."),
+    console.log(
+      "Visitor door listening on 127.0.0.1:8795 for Tailscale Funnel. Video relay: " +
+        (secrets.turnKeyId && secrets.turnApiToken ? "Cloudflare TURN" : "none (STUN only)"),
+    ),
   );

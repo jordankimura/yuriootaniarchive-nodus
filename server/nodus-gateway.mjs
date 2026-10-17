@@ -25,6 +25,8 @@ export function createGateway({
   cooldownMs = 20000,
   siteRoot = "",
   localControls = false,
+  turn = null,
+  fetchImpl = fetch,
 } = {}) {
   if (!secret || secret.length < 32 || !workerToken || workerToken.length < 32)
     throw Error(
@@ -57,6 +59,49 @@ export function createGateway({
         alias.hostname = to;
         origins.add(alias.origin);
       }
+  if (
+    turn &&
+    (!/^[A-Za-z0-9_-]{8,128}$/.test(String(turn.keyId)) ||
+      typeof turn.apiToken !== "string" ||
+      turn.apiToken.length < 16)
+  )
+    throw Error("The TURN relay key id or token is invalid.");
+  // Short-lived relay credentials from Cloudflare. The TURN key never leaves this PC;
+  // browsers get credentials that expire, refreshed well before they do.
+  const STUN_ONLY = [{ urls: "stun:stun.l.google.com:19302" }];
+  let ice = { servers: STUN_ONLY, refresh: -Infinity };
+  async function iceServers() {
+    if (!turn || now() < ice.refresh) return ice.servers;
+    try {
+      const r = await fetchImpl(
+        `https://rtc.live.cloudflare.com/v1/turn/keys/${turn.keyId}/credentials/generate-ice-servers`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + turn.apiToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ttl: 14400 }),
+          signal: AbortSignal.timeout(5000),
+          redirect: "error",
+        },
+      );
+      if (!r.ok) throw Error("TURN credentials request failed.");
+      const servers = (await r.json()).iceServers
+        .map((server) => ({
+          ...server,
+          urls: [server.urls]
+            .flat()
+            .filter((url) => typeof url === "string" && !/:53(\?|$)/.test(url)),
+        }))
+        .filter((server) => server.urls.length);
+      if (!servers.length) throw Error("No usable relay servers.");
+      ice = { servers, refresh: now() + 2 * 3600000 };
+    } catch {
+      ice = { servers: STUN_ONLY, refresh: now() + 60000 };
+    }
+    return ice.servers;
+  }
   const sessions = new Map(),
     operators = new Map(),
     jobs = [],
@@ -102,7 +147,7 @@ export function createGateway({
     route.startsWith("/worker/") ||
     route.startsWith("/operator") ||
     route.startsWith("/turns/") ||
-    ["/session", "/state", "/signals", "/signal", "/turns", "/camera", "/health"].includes(route);
+    ["/session", "/state", "/ice", "/signals", "/signal", "/turns", "/camera", "/health"].includes(route);
   const worker = (req) =>
     equal(req.headers.authorization, "Bearer " + workerToken);
   const validSignal = (type, payload) =>
@@ -383,7 +428,7 @@ export function createGateway({
             : "text/html",
           "Cache-Control": "no-store",
           "Content-Security-Policy":
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; media-src 'self' blob:; frame-ancestors 'none'",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:8788; media-src 'self' blob:; frame-ancestors 'none'",
         });
         return res.end(await fs.readFile(new URL(file, import.meta.url)));
       }
@@ -409,6 +454,8 @@ export function createGateway({
         const op = operator(req);
         if (!op)
           return json(res, 401, { error: "Local publisher session required." });
+        if (req.method === "GET" && route === "/operator/ice")
+          return json(res, 200, { iceServers: await iceServers() });
         if (req.method === "GET" && route === "/operator/signals") {
           const entries = [];
           for (const [visitor, items] of signals)
@@ -495,6 +542,8 @@ export function createGateway({
       s.seen = now();
       if (req.method === "GET" && route === "/state")
         return json(res, 200, state(s));
+      if (req.method === "GET" && route === "/ice")
+        return json(res, 200, { iceServers: await iceServers() });
       if (req.method === "GET" && route === "/signals") {
         const list = signals.get(videoChannel(req, s)) || [];
         list.seen = now();

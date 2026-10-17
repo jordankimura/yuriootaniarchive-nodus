@@ -11,6 +11,7 @@ export default async function handler(req, res) {
   const allowed =
     (path === "/session" && req.method === "POST") ||
     (path === "/state" && req.method === "GET") ||
+    (path === "/ice" && req.method === "GET") ||
     (path === "/signals" && req.method === "GET") ||
     (path === "/signal" && req.method === "POST") ||
     (path === "/turns" && req.method === "POST") ||
