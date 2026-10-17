@@ -1,5 +1,16 @@
 # Nodus shared room prototype
 
+## Room display update
+
+Mobile panels now use a single full-width column with explicit widths. The video
+has a loading spinner, and recovered network requests clear stale unavailable
+warnings. Messages show their gateway timestamps in each viewer's local timezone.
+The visible transcript resets after 30 minutes without messages (unless a reply
+or queued turn is active), and a later conversation does not re-display the older
+session. This is presentation filtering, not deletion from Connectome or the room
+API. The existing Discord mirror returned Missing Access; Jordan elected to turn
+it off in the local voice app's configuration instead of forwarding duplicates.
+
 ## Room text editor and mobile playback (October 17, 2026)
 
 Open `scripts/Edit Nodus Room.cmd`, then visit `http://127.0.0.1:5175/nodus-editor.html`.

@@ -11,6 +11,8 @@ function viewer(blocked = false, fetchImpl) {
     if (!elements.has(id)) elements.set(id, {
       hidden: id !== 'poster', textContent: '', muted: true, videoWidth: 640,
       dataset: {},
+      children: [], append(...children) { this.children.push(...children); },
+      replaceChildren(...children) { this.children = children; },
       classList: { toggle() {}, add() {}, remove() {} }, addEventListener() {},
       play: () => blocked ? Promise.reject(Object.assign(new Error(), {name:'NotAllowedError'})) : Promise.resolve(),
     });
@@ -24,7 +26,7 @@ function viewer(blocked = false, fetchImpl) {
     close() { this.closed = true; }
   }
   const context = vm.createContext({
-    document: {getElementById:get}, addEventListener() {},
+    document: {getElementById:get, createElement:tag=>({tag, children:[], append(...children) { this.children.push(...children); }}), createDocumentFragment:()=>({children:[],append(child) {this.children.push(child);}})}, addEventListener() {},
     setInterval() {}, setTimeout(fn) { timers.set(++timerId, fn); return timerId; },
     clearTimeout(id) { timers.delete(id); },
     RTCPeerConnection:Peer, MediaStream: class { addTrack() {} },
@@ -36,12 +38,14 @@ function viewer(blocked = false, fetchImpl) {
 }
 test('negotiated video keeps saved preview until actual playback', async () => {
   const v = viewer(); await v.run('connectVideo()');
+  assert.equal(v.get('video-loading').hidden, false);
   v.peer().ontrack({track:{kind:'video'}});
   assert.equal(v.get('poster').hidden, false);
   assert.notEqual(v.get('video-badge').textContent, 'LIVE');
   v.get('video').onplaying();
   assert.equal(v.get('poster').hidden, true);
   assert.equal(v.get('video-badge').textContent, 'LIVE');
+  assert.equal(v.get('video-loading').hidden, true);
   assert.equal(v.timers.size, 0);
 });
 test('blocked autoplay offers manual playback without replacing the preview', async () => {
@@ -49,6 +53,7 @@ test('blocked autoplay offers manual playback without replacing the preview', as
   v.peer().ontrack({track:{kind:'video'}});
   await Promise.resolve();
   assert.equal(v.get('play-video').hidden, false);
+  assert.equal(v.get('video-loading').hidden, true);
   assert.equal(v.get('poster').hidden, false);
   for (const timer of v.timers.values()) timer();
   assert.notEqual(v.peer().closed, true);
@@ -88,4 +93,34 @@ test('one failed signal read preserves the stream; repeated failures recover', a
   await v.run('pollSignals()');
   await v.run('pollSignals()');
   assert.equal(v.peer().closed, true);
+});
+
+test('chat clears at 30 idle minutes, preserves active replies, and starts fresh after a gap', () => {
+  const v = viewer();
+  assert.equal(v.run('transcriptForDisplay({transcript:[{at:100}], current:null, queue:[]}, 1800100).length'), 0);
+  assert.equal(v.run('transcriptForDisplay({transcript:[{at:100}], current:{}, queue:[]}, 1800100).length'), 1);
+  assert.equal(v.run('transcriptForDisplay({transcript:[{at:100},{at:1800100}], current:null, queue:[]}, 1800200).length'), 1);
+});
+
+test('successful polling clears a stale network error and renders message timestamps', async () => {
+  let fail = true;
+  const message = {name:'Nodus', role:'nodus', text:'Hello', at:Date.now()};
+  const state = {roomOpen:true, videoAvailable:false, queue:[], mine:[], transcript:[message]};
+  const v = viewer(false, async () => {
+    if (fail) throw Error('Network unavailable');
+    return {ok:true,json:async()=>state};
+  });
+  v.run('csrf="session"');
+  await v.run('pollRoom()');
+  assert.equal(v.get('presence').textContent, 'RECONNECTING');
+  fail = false;
+  await v.run('pollRoom()');
+  assert.equal(v.get('presence').textContent, 'OPEN');
+  assert.match(v.get('notice').textContent, /Connection restored/);
+  const timestamp = v.get('transcript').children[0].children[0].children[0].children[1];
+  assert.equal(timestamp.tag, 'time');
+  assert.equal(timestamp.dateTime, new Date(message.at).toISOString());
+  state.transcript = [];
+  await v.run('pollRoom()');
+  assert.match(v.get('transcript').children[0].textContent, /fresh conversation/);
 });

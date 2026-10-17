@@ -9,8 +9,8 @@
       name="description"
       content="A shared room with Nodus. Watch, stay a while, and take a turn in the conversation."
     />
-    <link rel="stylesheet" href="/nodus/nodus.css" />
-    <script type="module" src="/nodus/nodus.js"></script>
+    <link rel="stylesheet" href="/nodus/nodus.css?v=20261017-room2" />
+    <script type="module" src="/nodus/nodus.js?v=20261017-room2"></script>
     <script type="module" src="/nodus/copy.js"></script>
   </head>
   <body>
@@ -36,6 +36,11 @@
             alt="Nodus seated in his softly lit room, with a warm lamp and blue light across the wall."
           />
           <video id="video" autoplay playsinline muted hidden aria-label="Live Warudo video"></video>
+          <div id="video-loading" class="video-loading" role="status" hidden>
+            <span class="loading-spinner" aria-hidden="true"></span>
+            <span>Loading live video…</span>
+            <small>This can take a moment on cellular.</small>
+          </div>
           <button id="play-video" class="glass-button playback-button" hidden>Play live video</button>
           <div class="stage-top">
             <span class="room-label" data-copy="roomLabel">NODUS / ROOM 08</span
@@ -58,6 +63,7 @@
           <div class="room-note">
             One room, one conversation. Messages and Nodus’s replies are visible
             to everyone here.
+            Times are shown in your local timezone. The visible chat clears after 30 idle minutes; conversations may be retained in private logs.
           </div>
           <div
             id="transcript"

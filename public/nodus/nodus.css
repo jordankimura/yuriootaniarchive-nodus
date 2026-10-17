@@ -105,6 +105,8 @@ h1 em {
 }
 .stage {
   position: relative;
+  width: 100%;
+  justify-self: stretch;
   min-width: 0;
   min-height: 540px;
   background: #242b32;
@@ -129,6 +131,11 @@ h1 em {
 .stage-bottom { flex-wrap: wrap; }
 .stage-bottom #stage-caption { flex: 1 1 100%; }
 .playback-button { position: absolute; z-index: 4; left: 50%; top: 50%; transform: translate(-50%, -50%); min-height: 44px; }
+.video-loading { position: absolute; z-index: 4; left: 50%; top: 45%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 9px; width: min(240px, 80%); padding: 18px; border-radius: 6px; background: #101820cf; color: #fff; text-align: center; font-size: 13px; pointer-events: none; }
+.video-loading small { font-size: 10px; color: #d4d8db; }
+.loading-spinner { width: 28px; height: 28px; border: 3px solid #ffffff45; border-top-color: #fff; border-radius: 50%; animation: video-spin .9s linear infinite; }
+@keyframes video-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
 .stage-bottom button { min-height: 44px; flex-shrink: 0; }
 .stage:after {
   content: "";
@@ -192,6 +199,7 @@ h1 em {
   height: 106%;
 }
 .conversation {
+  min-width: 0;
   background: #f9f6eea8;
   border: 1px solid #fdfbf380;
   border-radius: 3px;
@@ -244,6 +252,7 @@ h2 {
   scrollbar-width: thin;
 }
 .empty {
+  margin: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -459,10 +468,15 @@ footer {
     display: none;
   }
   .room-grid {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     gap: 14px;
   }
   .stage {
+    width: 100%;
+    flex: none;
+    height: auto;
     min-height: 240px;
     aspect-ratio: 4/3;
   }
@@ -483,13 +497,18 @@ footer {
     font-size: 11px;
   }
   .conversation {
+    width: 100%;
+    flex: none;
     min-height: 440px;
-    height: 490px;
+    height: auto;
+    max-height: none;
   }
   .conversation-head {
     padding-top: 21px;
   }
   .transcript {
+    flex: none;
+    height: 240px;
     min-height: 130px;
   }
   .about-nodus {
@@ -510,3 +529,6 @@ footer {
     text-align: right;
   }
 }
+.message-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 7px; }
+.message-header .message-name { margin: 0; }
+.message-time { font-size: 10px; color: #817a6d; white-space: nowrap; }

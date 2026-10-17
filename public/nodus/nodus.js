@@ -4,6 +4,18 @@ let connectionTimer = null;
 let playbackBlocked = false;
 let signalPolling = false;
 let signalFailures = 0;
+let roomReadFailed = false;
+const CHAT_IDLE_MS = 30 * 60 * 1000;
+function transcriptForDisplay(s, time = Date.now()) {
+  const messages = s.transcript;
+  if (!messages.length) return [];
+  if (!s.current && !s.queue.length && time - messages.at(-1).at >= CHAT_IDLE_MS) return [];
+  let start = 0;
+  for (let i = 1; i < messages.length; i++) {
+    if (messages[i].at - messages[i - 1].at >= CHAT_IDLE_MS) start = i;
+  }
+  return messages.slice(start);
+}
 let csrf = "",
   name = "",
   state = null,
@@ -74,24 +86,42 @@ function render(s) {
             : s.roomOpen
               ? "The floor is open. Say hello."
               : "The room is quiet. Come back when Nodus is here.";
-  const signature = JSON.stringify(s.transcript);
+  const messages = transcriptForDisplay(s);
+  const signature = JSON.stringify(messages);
   if (signature !== lastTranscript) {
     lastTranscript = signature;
-    if (s.transcript.length) {
+    if (messages.length) {
       const frag = document.createDocumentFragment();
-      for (const m of s.transcript) {
+      for (const m of messages) {
         const div = document.createElement("div");
         div.className = "message " + (m.role === "nodus" ? "nodus" : "visitor");
         const label = document.createElement("div");
         label.className = "message-name";
         label.textContent = m.name;
+        const header = document.createElement("div");
+        header.className = "message-header";
+        header.append(label);
+        if (Number.isFinite(m.at)) {
+          const timestamp = document.createElement("time");
+          const date = new Date(m.at);
+          timestamp.className = "message-time";
+          timestamp.dateTime = date.toISOString();
+          timestamp.textContent = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+          timestamp.title = date.toLocaleString([], { timeZoneName: "short" });
+          header.append(timestamp);
+        }
         const text = document.createElement("p");
         text.textContent = m.text;
-        div.append(label, text);
+        div.append(header, text);
         frag.append(div);
       }
       $("transcript").replaceChildren(frag);
       $("transcript").scrollTop = $("transcript").scrollHeight;
+    } else {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "A fresh conversation. Messages clear after 30 quiet minutes.";
+      $("transcript").replaceChildren(empty);
     }
   }
   const latest = s.mine.at(-1),
@@ -190,6 +220,7 @@ addEventListener("pagehide", () => {
   stopVideo();
 });
 function stopVideo() {
+  $("video-loading").hidden = true;
   clearTimeout(connectionTimer);
   playbackBlocked = false;
   const old = pc;
@@ -226,6 +257,7 @@ async function connectVideo() {
   if (!globalThis.RTCPeerConnection) return;
   const startedAt = Date.now();
   connecting = true;
+  $("video-loading").hidden = false;
   videoView = crypto.randomUUID().replaceAll("-", "");
   cursor = 0;
   candidates = [];
@@ -272,6 +304,7 @@ async function connectVideo() {
           clearTimeout(connectionTimer);
           $("stage").dataset.connectionMs = String(Date.now() - startedAt);
           playbackBlocked = false;
+          $("video-loading").hidden = true;
           $("poster").hidden = true;
           $("play-video").hidden = true;
           $("retry-video").hidden = true;
@@ -284,6 +317,7 @@ async function connectVideo() {
       void video.play().catch((error) => {
         if (pc !== peer || error.name !== "NotAllowedError") return;
         playbackBlocked = true;
+        $("video-loading").hidden = true;
         $("play-video").hidden = false;
         $("video-badge").textContent = "TAP TO PLAY";
         $("stage-caption").textContent = "Tap Play live video to start playback.";
@@ -318,11 +352,16 @@ $("sound").addEventListener("click", () => {
   video.muted = !video.muted;
   $("sound").textContent = video.muted ? "Enable sound" : "Mute sound";
   void video.play().catch(() => {
+    playbackBlocked = true;
+    $("video-loading").hidden = true;
     video.muted = true;
     $("sound").textContent = "Enable sound";
     $("play-video").hidden = false;
     $("stage-caption").textContent = "Playback was paused. Tap Play live video, then Enable sound.";
   });
+});
+$("video").addEventListener("waiting", () => {
+  if (pc && !playbackBlocked) $("video-loading").hidden = false;
 });
 $("play-video").addEventListener("click", () => {
   void $("video").play().catch(() => {
@@ -367,13 +406,15 @@ async function pollSignals() {
   } finally { signalPolling = false; }
 }
 setInterval(() => void pollSignals(), 750);
-setInterval(async () => {
+async function pollRoom() {
   if (!csrf || polling) return;
   polling = true;
-  let roomRead = false;
   try {
     render(await api("/state"));
-    roomRead = true;
+    if (roomReadFailed) {
+      roomReadFailed = false;
+      notice("Connection restored. Your messages and Nodus’s replies are public to everyone in this room.");
+    }
 
   } catch (e) {
     if (e.status === 401) {
@@ -395,18 +436,15 @@ setInterval(async () => {
       );
       return;
     }
-    if (roomRead) {
-      stopVideo();
-      notice("The camera is reconnecting. You can still use the conversation.");
-      return;
-    }
-    notice(e.message, true);
+    roomReadFailed = true;
+    notice("The connection was interrupted. Reconnecting…", true);
     $("presence").textContent = "RECONNECTING";
     $("presence").classList.remove("open");
     $("send").disabled = true;
   } finally {
     polling = false;
   }
-}, 1500);
+}
+setInterval(() => void pollRoom(), 1500);
 // Check availability without opening a visitor session or requesting device access.
 notice("A shared, public conversation. Please keep personal details private.");
